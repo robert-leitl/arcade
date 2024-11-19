@@ -1,4 +1,5 @@
 uniform sampler2D uScene;
+uniform sampler2D uBloom;
 
 layout(location = 0) out vec4 outColor;
 
@@ -46,8 +47,11 @@ vec4 fromLinear(vec4 linearRGB)
 
 void main() {
     vec4 sceneColor = texture(uScene, vUv);
+    vec4 bloomColor = texture(uBloom, vUv);
 
     vec4 color = sceneColor;
+
+    color.rgb += bloomColor.rgb * 0.004;
 
     outColor = vec4((NeutralToneMapping(color.rgb)), 1.);
 

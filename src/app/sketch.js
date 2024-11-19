@@ -1,10 +1,10 @@
 import * as THREE from 'three';
 import {
     ClampToEdgeWrapping,
-    Color, GLSL3, HalfFloatType,
+    Color, DirectionalLight, GLSL3, HalfFloatType,
     IcosahedronGeometry, LinearFilter,
-    Mesh,
-    MeshStandardMaterial, NearestFilter, RawShaderMaterial,
+    Mesh, MeshPhysicalMaterial,
+    MeshStandardMaterial, NearestFilter, PointLight, RawShaderMaterial,
     Raycaster, RGBAFormat, ShaderMaterial,
     Vector2,
     Vector3,
@@ -49,7 +49,7 @@ var _isDev,
     raycaster,
     viewportSize;
 
-let mesh1, quadMesh;
+let mesh1, quadMesh, l1;
 
 let rtScene, rtFFT_0, rtFFT_1, rtFFT_2, rtFlare_0, rtFlare_1, rtFlare_2;
 
@@ -57,7 +57,7 @@ let fftMaterial, finalizeColorMaterial, flareMaterial, fftConvolutionMaterial;
 
 const flareSize = new Vector2();
 const convolutionSize = new Vector2();
-const convolutionScale = 1;
+const convolutionScale = 2;
 
 let downsampleSceneBlit;
 
@@ -92,15 +92,21 @@ function setupScene(canvas) {
     controls = new OrbitControls(camera, canvas);
 
     mesh1 = new Mesh(
-        new IcosahedronGeometry(0.01, 2),
-        new MeshStandardMaterial({ emissive: new Color(1, 0, 0), emissiveIntensity: 1, toneMapped: false })
+        new IcosahedronGeometry(0.5, 1),
+        new MeshPhysicalMaterial({ flatShading: true, roughness: 0, color: 0xff0000, emissive: new Color(1, 0, 0), emissiveIntensity: 0.1, toneMapped: false })
     );
-    mesh1.position.x = 0.2;
     scene.add(mesh1);
+
+    l1 = new PointLight();
+    l1.color = new Color(1, 0, 0);
+    l1.intensity = 3;
+    l1.position.y = 1;
+    scene.add(l1);
 
     finalizeColorMaterial = new ShaderMaterial({
         uniforms: {
             uScene: {value: null},
+            uBloom: {value: null},
         },
         vertexShader: QuadGeometry.vertexShader,
         fragmentShader: finalizeColorFrag,
@@ -158,12 +164,13 @@ function setupScene(canvas) {
         finalizeColorMaterial
     );
 
-    rtScene = new WebGLRenderTarget(viewportSize.x, viewportSize.y, { type: HalfFloatType, samples: 4 });
+    rtScene = new WebGLRenderTarget(viewportSize.x, viewportSize.y, { type: HalfFloatType, samples: 1 });
 
     downsampleSceneBlit = new Blit(renderer);
 
     convolutionSize.x = pow2ceil(viewportSize.x / 2) >> convolutionScale;
     convolutionSize.y = pow2ceil(viewportSize.y / 2) >> convolutionScale;
+    console.log(convolutionSize)
     rtFFT_1 = new WebGLRenderTarget(convolutionSize.x, convolutionSize.y, {
         depthBuffer: false,
         type: HalfFloatType,
@@ -230,6 +237,8 @@ function resize() {
 
 function animate() {
     if (controls) controls.update();
+
+    l1.position.set(Math.cos(time * 0.0005), Math.sin(time * 0.0005), 0);
 }
 
 function fft(opts) {
@@ -353,7 +362,8 @@ function render() {
 
     renderer.setRenderTarget(null);
     quadMesh.material = finalizeColorMaterial;
-    finalizeColorMaterial.uniforms.uScene.value = rtFFT_2.texture;
+    finalizeColorMaterial.uniforms.uScene.value = rtScene.texture;
+    finalizeColorMaterial.uniforms.uBloom.value = rtFFT_2.texture;
     renderer.render( quadMesh, camera );
 }
 

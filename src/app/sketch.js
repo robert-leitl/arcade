@@ -17,6 +17,7 @@ import fftFrag from './shader/fft.frag.glsl';
 import flareFrag from './shader/flare.frag.glsl';
 import fftConvolutionFrag from './shader/fft-convolution.frag.glsl';
 import {OrbitControls} from 'three/addons';
+import {Blit} from '../libs/blit.js';
 
 // the target duration of one frame in milliseconds
 const TARGET_FRAME_DURATION_MS = 16;
@@ -50,11 +51,15 @@ var _isDev,
 
 let mesh1, quadMesh;
 
-let rtScene, rtFFT_0, rtFFT_1, rtFFT_2, rtFlare_0, rtFlare_1;
+let rtScene, rtFFT_0, rtFFT_1, rtFFT_2, rtFlare_0, rtFlare_1, rtFlare_2;
 
 let fftMaterial, finalizeColorMaterial, flareMaterial, fftConvolutionMaterial;
 
-const fixedViewportSize = new Vector2(1024, 1024);
+const flareSize = new Vector2();
+const convolutionSize = new Vector2();
+const convolutionScale = 1;
+
+let downsampleSceneBlit;
 
 function init(canvas, onInit = null, isDev = false, pane = null) {
     _isDev = isDev;
@@ -67,6 +72,10 @@ function init(canvas, onInit = null, isDev = false, pane = null) {
     setupScene(canvas);
 }
 
+function pow2ceil(v) {
+    return Math.pow(2, Math.ceil(Math.log(v)/Math.log(2)))
+}
+
 function setupScene(canvas) {
     camera = new THREE.PerspectiveCamera( 20, window.innerWidth / window.innerHeight, 1, 10 );
     camera.position.set(0, 0, 5);
@@ -76,8 +85,7 @@ function setupScene(canvas) {
 
     renderer = new THREE.WebGLRenderer( { canvas, antialias: true } );
     viewportSize = new Vector2(renderer.domElement.clientWidth, renderer.domElement.clientHeight);
-    viewportSize.copy(fixedViewportSize);
-    renderer.setSize(viewportSize.x, viewportSize.y);
+    renderer.setSize(viewportSize.x, viewportSize.y, false);
 
     raycaster = new Raycaster();
 
@@ -150,22 +158,31 @@ function setupScene(canvas) {
         finalizeColorMaterial
     );
 
-    rtScene = new WebGLRenderTarget(viewportSize.x, viewportSize.y, { type: HalfFloatType });
-    rtFFT_1 = new WebGLRenderTarget(viewportSize.x, viewportSize.y, {
+    rtScene = new WebGLRenderTarget(viewportSize.x, viewportSize.y, { type: HalfFloatType, samples: 4 });
+
+    downsampleSceneBlit = new Blit(renderer);
+
+    convolutionSize.x = pow2ceil(viewportSize.x / 2) >> convolutionScale;
+    convolutionSize.y = pow2ceil(viewportSize.y / 2) >> convolutionScale;
+    rtFFT_1 = new WebGLRenderTarget(convolutionSize.x, convolutionSize.y, {
         depthBuffer: false,
         type: HalfFloatType,
         format: RGBAFormat,
         internalFormat: 'RGBA16F',
-        magFilter: NearestFilter,
-        minFilter: NearestFilter,
+        magFilter: LinearFilter,
+        minFilter: LinearFilter,
         wrapT: ClampToEdgeWrapping,
         wrapS: ClampToEdgeWrapping
     });
     rtFFT_0 = rtFFT_1.clone();
     rtFFT_2 = rtFFT_1.clone();
 
-    rtFlare_0 = rtFFT_1.clone();
-    rtFlare_1 = rtFFT_1.clone();
+    flareSize.copy(convolutionSize);
+    rtFlare_0 = new WebGLRenderTarget(flareSize.x, flareSize.y, { type: HalfFloatType,
+        magFilter: LinearFilter,
+        minFilter: LinearFilter });
+    rtFlare_1 = rtFlare_0.clone();
+    rtFlare_2 = rtFlare_0.clone();
 
     renderer.setAnimationLoop((t) => run(t));
 
@@ -186,21 +203,28 @@ function resize() {
     if (!_isInitialized) return;
 
     if (resizeRendererToDisplaySize(renderer)) {
-        // TODO remove power of two restriction
-        renderer.setSize(fixedViewportSize.x, fixedViewportSize.y, true);
-
         renderer.getSize(viewportSize);
         camera.aspect = viewportSize.x / viewportSize.y;
         camera.updateProjectionMatrix();
 
         rtScene.setSize(viewportSize.x, viewportSize.y);
-        rtFFT_0.setSize(viewportSize.x, viewportSize.y);
-        rtFFT_1.setSize(viewportSize.x, viewportSize.y);
-        rtFFT_2.setSize(viewportSize.x, viewportSize.y);
-        rtFlare_0.setSize(viewportSize.x, viewportSize.y);
-        rtFlare_1.setSize(viewportSize.x, viewportSize.y);
 
-        fftMaterial.uniforms.uTexelSize.value = new Vector2(1 / viewportSize.x, 1 / viewportSize.y);
+        convolutionSize.x = pow2ceil(viewportSize.x / 2) >> convolutionScale;
+        convolutionSize.y = pow2ceil(viewportSize.y / 2) >> convolutionScale;
+
+        rtFFT_0.setSize(convolutionSize.x, convolutionSize.y);
+        rtFFT_1.setSize(convolutionSize.x, convolutionSize.y);
+        rtFFT_2.setSize(convolutionSize.x, convolutionSize.y);
+
+        flareSize.copy(convolutionSize);
+        rtFlare_0.setSize(flareSize.x, flareSize.y);
+        rtFlare_1.setSize(flareSize.x, flareSize.y);
+        rtFlare_2.setSize(flareSize.x, flareSize.y);
+
+        fftMaterial.uniforms.uTexelSize.value = new Vector2(1 / convolutionSize.x, 1 / convolutionSize.y);
+
+        let h = viewportSize.y / Math.max(viewportSize.x, viewportSize.y);
+        flareMaterial.uniforms.uAspect.value = new Vector2(viewportSize.x / viewportSize.y * h, h);
     }
 }
 
@@ -254,6 +278,10 @@ function fft(opts) {
             uniforms.uSrc.value = ping.texture;
         }
 
+        if (i === iterations - 1) {
+            rtOutput = opts.output;
+        }
+
         if (i === 0) {
             if (!!opts.splitNormalization) {
                 uniforms.uNormalization.value = 1.0 / Math.sqrt(width * height);
@@ -281,12 +309,15 @@ function render() {
     renderer.setRenderTarget(rtScene);
     renderer.render( scene, camera );
 
-    let rtFFT_Result = fft({
-        width: viewportSize.x,
-        height: viewportSize.y,
-        input: rtScene,
+    downsampleSceneBlit.blit(rtScene.texture, rtFFT_0);
+
+    fft({
+        width: convolutionSize.x,
+        height: convolutionSize.y,
+        input: rtFFT_0,
         ping: rtFFT_0,
         pong: rtFFT_1,
+        output: rtFFT_2,
         forward: true
     });
 
@@ -294,34 +325,35 @@ function render() {
     quadMesh.material = flareMaterial;
     renderer.render(quadMesh, camera);
 
-    let rtFFT_FlareResult = fft({
-        width: viewportSize.x,
-        height: viewportSize.y,
+    fft({
+        width: flareSize.x,
+        height: flareSize.y,
         input: rtFlare_0,
-        ping: rtFFT_2,
-        pong: rtFFT_1,
+        ping: rtFlare_0,
+        pong: rtFlare_1,
+        output: rtFlare_2,
         forward: true
     });
 
-    renderer.setRenderTarget(rtFFT_1);
+    renderer.setRenderTarget(rtFFT_0);
     quadMesh.material = fftConvolutionMaterial;
-    fftConvolutionMaterial.uniforms.uFFT.value = rtFFT_Result.texture;
-    fftConvolutionMaterial.uniforms.uKernel.value = rtFFT_FlareResult.texture;
+    fftConvolutionMaterial.uniforms.uFFT.value = rtFFT_2.texture;
+    fftConvolutionMaterial.uniforms.uKernel.value = rtFlare_2.texture;
     renderer.render(quadMesh, camera);
-    rtFFT_Result = rtFFT_1;
 
-    rtFFT_Result = fft({
-        width: viewportSize.x,
-        height: viewportSize.y,
-        input: rtFFT_Result,
-        ping: rtFFT_2,
-        pong: rtFFT_0,
+    fft({
+        width: convolutionSize.x,
+        height: convolutionSize.y,
+        input: rtFFT_0,
+        ping: rtFFT_0,
+        pong: rtFFT_1,
+        output: rtFFT_2,
         forward: false
     });
 
     renderer.setRenderTarget(null);
     quadMesh.material = finalizeColorMaterial;
-    finalizeColorMaterial.uniforms.uScene.value = rtFFT_Result.texture;
+    finalizeColorMaterial.uniforms.uScene.value = rtFFT_2.texture;
     renderer.render( quadMesh, camera );
 }
 

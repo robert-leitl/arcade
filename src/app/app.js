@@ -14,13 +14,13 @@ if (isDev) {
 }
 
 if (hasDebugParam || isDev) {
-    pane = new Pane({ title: 'Settings', expanded: isDev });
+    //pane = new Pane({ title: 'Settings', expanded: isDev });
 }
 
 const stats = new Stats();
 if (hasDebugParam || isDev) {
   stats.showPanel(0);
-  document.body.appendChild(stats.dom);
+  //document.body.appendChild(stats.dom);
   const updateStats = () => {
     stats.update();
     requestAnimationFrame(updateStats);

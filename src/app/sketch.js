@@ -14,6 +14,9 @@ import {resizeRendererToDisplaySize} from '../libs/three-utils';
 import {QuadGeometry} from '../libs/quad-geometry.js';
 import finalizeColorFrag from './shader/finalize-color.frag.glsl';
 import fftFrag from './shader/fft.frag.glsl';
+import flareFrag from './shader/flare.frag.glsl';
+import fftConvolutionFrag from './shader/fft-convolution.frag.glsl';
+import {OrbitControls} from 'three/addons';
 
 // the target duration of one frame in milliseconds
 const TARGET_FRAME_DURATION_MS = 16;
@@ -47,9 +50,9 @@ var _isDev,
 
 let mesh1, quadMesh;
 
-let rtScene, rtFFT_0, rtFFT_1, rtFFT_2;
+let rtScene, rtFFT_0, rtFFT_1, rtFFT_2, rtFlare_0, rtFlare_1;
 
-let fftMaterial, finalizeColorMaterial;
+let fftMaterial, finalizeColorMaterial, flareMaterial, fftConvolutionMaterial;
 
 const fixedViewportSize = new Vector2(1024, 1024);
 
@@ -78,10 +81,13 @@ function setupScene(canvas) {
 
     raycaster = new Raycaster();
 
+    controls = new OrbitControls(camera, canvas);
+
     mesh1 = new Mesh(
         new IcosahedronGeometry(0.01, 2),
         new MeshStandardMaterial({ emissive: new Color(1, 0, 0), emissiveIntensity: 1, toneMapped: false })
     );
+    mesh1.position.x = 0.2;
     scene.add(mesh1);
 
     finalizeColorMaterial = new ShaderMaterial({
@@ -90,6 +96,33 @@ function setupScene(canvas) {
         },
         vertexShader: QuadGeometry.vertexShader,
         fragmentShader: finalizeColorFrag,
+        depthWrite: false,
+        depthTest: false,
+        glslVersion: GLSL3,
+        toneMapped: false
+    });
+
+    let h = viewportSize.y / Math.max(viewportSize.x, viewportSize.y);
+    const aspect = new Vector2(viewportSize.x / viewportSize.y * h, h)
+    flareMaterial = new ShaderMaterial({
+        uniforms: {
+            uAspect: {value: aspect},
+        },
+        vertexShader: QuadGeometry.vertexShader,
+        fragmentShader: flareFrag,
+        depthWrite: false,
+        depthTest: false,
+        glslVersion: GLSL3,
+        toneMapped: false
+    });
+
+    fftConvolutionMaterial = new ShaderMaterial({
+        uniforms: {
+            uFFT: { value: null },
+            uKernel: { value: null },
+        },
+        vertexShader: QuadGeometry.vertexShader,
+        fragmentShader: fftConvolutionFrag,
         depthWrite: false,
         depthTest: false,
         glslVersion: GLSL3,
@@ -131,6 +164,9 @@ function setupScene(canvas) {
     rtFFT_0 = rtFFT_1.clone();
     rtFFT_2 = rtFFT_1.clone();
 
+    rtFlare_0 = rtFFT_1.clone();
+    rtFlare_1 = rtFFT_1.clone();
+
     renderer.setAnimationLoop((t) => run(t));
 
     _isInitialized = true;
@@ -161,6 +197,8 @@ function resize() {
         rtFFT_0.setSize(viewportSize.x, viewportSize.y);
         rtFFT_1.setSize(viewportSize.x, viewportSize.y);
         rtFFT_2.setSize(viewportSize.x, viewportSize.y);
+        rtFlare_0.setSize(viewportSize.x, viewportSize.y);
+        rtFlare_1.setSize(viewportSize.x, viewportSize.y);
 
         fftMaterial.uniforms.uTexelSize.value = new Vector2(1 / viewportSize.x, 1 / viewportSize.y);
     }
@@ -192,34 +230,12 @@ function fft(opts) {
         throw new Error('either size or both width and height must provided.');
     }
 
-    // Swap to avoid collisions with the input:
-    // ping = opts.ping;
-    // if (opts.input === opts.pong) {
-    //     ping = opts.pong;
-    // }
-    // pong = ping === opts.ping ? opts.pong : opts.ping;
-
     ping = opts.ping;
     pong = opts.pong;
 
     let xIterations = Math.round(Math.log(width) / Math.log(2));
     let yIterations = Math.round(Math.log(height) / Math.log(2));
     let iterations = xIterations + yIterations;
-
-    // Swap to avoid collisions with output:
-    // if (opts.output === ((iterations % 2 === 0) ? pong : ping)) {
-    //     swap();
-    // }
-    //
-    // // If we've avoiding collision with output creates an input collision,
-    // // then you'll just have to rework your framebuffers and try again.
-    // if (opts.input === pong) {
-    //     throw new Error([
-    //         'not enough framebuffers to compute without copying data. You may perform',
-    //         'the computation with only two framebuffers, but the output must equal',
-    //         'the input when an even number of iterations are required.'
-    //     ].join(' '));
-    // }
 
     quadMesh.material = fftMaterial;
     const uniforms = fftMaterial.uniforms;
@@ -274,12 +290,32 @@ function render() {
         forward: true
     });
 
+    renderer.setRenderTarget(rtFlare_0);
+    quadMesh.material = flareMaterial;
+    renderer.render(quadMesh, camera);
+
+    let rtFFT_FlareResult = fft({
+        width: viewportSize.x,
+        height: viewportSize.y,
+        input: rtFlare_0,
+        ping: rtFFT_2,
+        pong: rtFFT_1,
+        forward: true
+    });
+
+    renderer.setRenderTarget(rtFFT_1);
+    quadMesh.material = fftConvolutionMaterial;
+    fftConvolutionMaterial.uniforms.uFFT.value = rtFFT_Result.texture;
+    fftConvolutionMaterial.uniforms.uKernel.value = rtFFT_FlareResult.texture;
+    renderer.render(quadMesh, camera);
+    rtFFT_Result = rtFFT_1;
+
     rtFFT_Result = fft({
         width: viewportSize.x,
         height: viewportSize.y,
         input: rtFFT_Result,
-        ping: rtFFT_1,
-        pong: rtFFT_2,
+        ping: rtFFT_2,
+        pong: rtFFT_0,
         forward: false
     });
 

@@ -1,13 +1,13 @@
 import * as THREE from 'three';
 import {
     ClampToEdgeWrapping,
-    Color, DirectionalLight, GLSL3, HalfFloatType,
+    Color, DirectionalLight, FloatType, GLSL3, HalfFloatType,
     IcosahedronGeometry, LinearFilter,
     Mesh, MeshPhysicalMaterial,
     MeshStandardMaterial, NearestFilter, PointLight, RawShaderMaterial,
     Raycaster, RGBAFormat, ShaderMaterial,
     Vector2,
-    Vector3,
+    Vector3, Vector4,
     WebGLRenderTarget
 } from 'three';
 import {resizeRendererToDisplaySize} from '../libs/three-utils';
@@ -57,9 +57,13 @@ let fftMaterial, finalizeColorMaterial, flareMaterial, fftConvolutionMaterial;
 
 const flareSize = new Vector2();
 const convolutionSize = new Vector2();
-const convolutionScale = 2;
+const convolutionScale = 1;
 
 let downsampleSceneBlit;
+const bloomDownSampleSize = new Vector2();
+const bloomDownSampleViewport = new Vector4();
+const bloomViewportPaddingPercent = 0.1;
+const bloomUvViewport = new Vector4();
 
 function init(canvas, onInit = null, isDev = false, pane = null) {
     _isDev = isDev;
@@ -72,8 +76,12 @@ function init(canvas, onInit = null, isDev = false, pane = null) {
     setupScene(canvas);
 }
 
+function powerTwoCeilingBase(e) {
+    return Math.ceil(Math.log(e) / Math.log(2))
+}
+
 function pow2ceil(v) {
-    return Math.pow(2, Math.ceil(Math.log(v)/Math.log(2)))
+    return Math.pow(2, powerTwoCeilingBase(v));
 }
 
 function setupScene(canvas) {
@@ -92,21 +100,23 @@ function setupScene(canvas) {
     controls = new OrbitControls(camera, canvas);
 
     mesh1 = new Mesh(
-        new IcosahedronGeometry(0.5, 1),
-        new MeshPhysicalMaterial({ flatShading: true, roughness: 0, color: 0xff0000, emissive: new Color(1, 0, 0), emissiveIntensity: 0.1, toneMapped: false })
+        new IcosahedronGeometry(0.01, 1),
+        new MeshPhysicalMaterial({ flatShading: true, roughness: 0, color: 0xff0000, emissive: new Color(1, 0, 0), emissiveIntensity: 1.1, toneMapped: false })
     );
     scene.add(mesh1);
 
     l1 = new PointLight();
     l1.color = new Color(1, 0, 0);
     l1.intensity = 3;
-    l1.position.y = 1;
+    l1.position.z = 1;
     scene.add(l1);
 
     finalizeColorMaterial = new ShaderMaterial({
         uniforms: {
             uScene: {value: null},
             uBloom: {value: null},
+            uBloomAmount: { value: 1 },
+            uBloomViewport: { value: bloomDownSampleViewport }
         },
         vertexShader: QuadGeometry.vertexShader,
         fragmentShader: finalizeColorFrag,
@@ -168,14 +178,15 @@ function setupScene(canvas) {
 
     downsampleSceneBlit = new Blit(renderer);
 
-    convolutionSize.x = pow2ceil(viewportSize.x / 2) >> convolutionScale;
-    convolutionSize.y = pow2ceil(viewportSize.y / 2) >> convolutionScale;
-    console.log(convolutionSize)
+    computeBloomSizes();
+
     rtFFT_1 = new WebGLRenderTarget(convolutionSize.x, convolutionSize.y, {
         depthBuffer: false,
         type: HalfFloatType,
+        //type: FloatType,
         format: RGBAFormat,
         internalFormat: 'RGBA16F',
+        //internalFormat: 'RGBA32F',
         magFilter: LinearFilter,
         minFilter: LinearFilter,
         wrapT: ClampToEdgeWrapping,
@@ -194,6 +205,38 @@ function setupScene(canvas) {
     renderer.setAnimationLoop((t) => run(t));
 
     _isInitialized = true;
+}
+
+function computeBloomSizes() {
+    const bloomViewportSize = viewportSize.clone().multiplyScalar(1 + bloomViewportPaddingPercent);
+    convolutionSize.x = pow2ceil(bloomViewportSize.x / 2) >> convolutionScale;
+    convolutionSize.y = pow2ceil(bloomViewportSize.y / 2) >> convolutionScale;
+
+    bloomDownSampleSize.x = Math.ceil(bloomViewportSize.x / 2) >> convolutionScale;
+    bloomDownSampleSize.y = Math.ceil(bloomViewportSize.y / 2) >> convolutionScale;
+
+    const horizontalPadding = (convolutionSize.x - bloomDownSampleSize.x) + bloomDownSampleSize.x * bloomViewportPaddingPercent;
+    const verticalPadding = (convolutionSize.y - bloomDownSampleSize.y) + bloomDownSampleSize.y * bloomViewportPaddingPercent;
+    bloomDownSampleViewport.x = Math.ceil(horizontalPadding / 2);
+    bloomDownSampleViewport.y = Math.ceil(verticalPadding / 2);
+    bloomDownSampleViewport.z = bloomDownSampleSize.x - Math.floor(bloomDownSampleSize.x * bloomViewportPaddingPercent);
+    bloomDownSampleViewport.w = bloomDownSampleSize.y - Math.floor(bloomDownSampleSize.y * bloomViewportPaddingPercent);
+
+    bloomUvViewport.x = bloomDownSampleViewport.x / convolutionSize.x;
+    bloomUvViewport.y = bloomDownSampleViewport.y / convolutionSize.y;
+    bloomUvViewport.z = bloomUvViewport.x + bloomDownSampleViewport.z / convolutionSize.x;
+    bloomUvViewport.w = bloomUvViewport.y + bloomDownSampleViewport.w / convolutionSize.y;
+
+    console.log(bloomUvViewport, convolutionSize)
+
+    const amount = (viewportSize.x * viewportSize.y) * .0000002;
+    finalizeColorMaterial.uniforms.uBloomAmount.value = amount;
+
+
+    let h = convolutionSize.y / Math.max(convolutionSize.x, convolutionSize.y);
+    flareMaterial.uniforms.uAspect.value = new Vector2(convolutionSize.x / convolutionSize.y * h, h);
+
+    console.log(viewportSize.x / viewportSize.y, bloomDownSampleViewport.z / bloomDownSampleViewport.w)
 }
 
 function run(t = 0) {
@@ -216,8 +259,7 @@ function resize() {
 
         rtScene.setSize(viewportSize.x, viewportSize.y);
 
-        convolutionSize.x = pow2ceil(viewportSize.x / 2) >> convolutionScale;
-        convolutionSize.y = pow2ceil(viewportSize.y / 2) >> convolutionScale;
+        computeBloomSizes();
 
         rtFFT_0.setSize(convolutionSize.x, convolutionSize.y);
         rtFFT_1.setSize(convolutionSize.x, convolutionSize.y);
@@ -229,16 +271,13 @@ function resize() {
         rtFlare_2.setSize(flareSize.x, flareSize.y);
 
         fftMaterial.uniforms.uTexelSize.value = new Vector2(1 / convolutionSize.x, 1 / convolutionSize.y);
-
-        let h = viewportSize.y / Math.max(viewportSize.x, viewportSize.y);
-        flareMaterial.uniforms.uAspect.value = new Vector2(viewportSize.x / viewportSize.y * h, h);
     }
 }
 
 function animate() {
     if (controls) controls.update();
 
-    l1.position.set(Math.cos(time * 0.0005), Math.sin(time * 0.0005), 0);
+    //l1.position.set(Math.cos(time * 0.0005), Math.sin(time * 0.0005), 0);
 }
 
 function fft(opts) {
@@ -318,7 +357,10 @@ function render() {
     renderer.setRenderTarget(rtScene);
     renderer.render( scene, camera );
 
+    const viewport = rtFFT_0.viewport.clone();
+    rtFFT_0.viewport = bloomDownSampleViewport;
     downsampleSceneBlit.blit(rtScene.texture, rtFFT_0);
+    rtFFT_0.viewport = viewport;
 
     fft({
         width: convolutionSize.x,
@@ -364,6 +406,7 @@ function render() {
     quadMesh.material = finalizeColorMaterial;
     finalizeColorMaterial.uniforms.uScene.value = rtScene.texture;
     finalizeColorMaterial.uniforms.uBloom.value = rtFFT_2.texture;
+    finalizeColorMaterial.uniforms.uBloomViewport.value = bloomUvViewport;
     renderer.render( quadMesh, camera );
 }
 

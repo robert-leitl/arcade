@@ -1,5 +1,7 @@
 uniform sampler2D uScene;
 uniform sampler2D uBloom;
+uniform float uBloomAmount;
+uniform vec4 uBloomViewport;
 
 layout(location = 0) out vec4 outColor;
 
@@ -45,13 +47,24 @@ vec4 fromLinear(vec4 linearRGB)
     return vec4(mix(higher, lower, cutoff), linearRGB.a);
 }
 
+vec2 map(vec2 value, vec2 inMin, vec2 inMax, vec2 outMin, vec2 outMax) {
+    return outMin + (outMax - outMin) * (value - inMin) / (inMax - inMin);
+}
+
 void main() {
     vec4 sceneColor = texture(uScene, vUv);
-    vec4 bloomColor = texture(uBloom, vUv);
+
+    vec2 bloomUv = map(vUv, vec2(0.), vec2(1.), uBloomViewport.xy, uBloomViewport.zw);
+
+    vec4 bloomColor = texture(uBloom, bloomUv);
 
     vec4 color = sceneColor;
 
     color.rgb += bloomColor.rgb * 0.004;
+
+    outColor.rgb = bloomColor.rgb * uBloomAmount;
+    outColor.a = 1.;
+    return;
 
     outColor = vec4((NeutralToneMapping(color.rgb)), 1.);
 

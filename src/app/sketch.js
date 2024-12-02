@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import {
     ClampToEdgeWrapping,
     Color, DirectionalLight, FloatType, GLSL3, HalfFloatType,
-    IcosahedronGeometry, LinearFilter,
+    IcosahedronGeometry, LinearFilter, LoadingManager,
     Mesh, MeshPhysicalMaterial,
     MeshStandardMaterial, NearestFilter, PointLight, RawShaderMaterial,
     Raycaster, RGBAFormat, ShaderMaterial,
@@ -16,7 +16,7 @@ import finalizeColorFrag from './shader/finalize-color.frag.glsl';
 import fftFrag from './shader/fft.frag.glsl';
 import flareFrag from './shader/flare.frag.glsl';
 import fftConvolutionFrag from './shader/fft-convolution.frag.glsl';
-import {OrbitControls} from 'three/addons';
+import {OrbitControls, RGBELoader} from 'three/addons';
 import {Blit} from '../libs/blit.js';
 
 // the target duration of one frame in milliseconds
@@ -65,6 +65,9 @@ const bloomDownSampleViewport = new Vector4();
 const bloomViewportPaddingPercent = 0.1;
 const bloomUvViewport = new Vector4();
 
+
+let flareTex;
+
 function init(canvas, onInit = null, isDev = false, pane = null) {
     _isDev = isDev;
     _pane = pane;
@@ -73,7 +76,15 @@ function init(canvas, onInit = null, isDev = false, pane = null) {
 
     }
 
-    setupScene(canvas);
+    const manager = new LoadingManager();
+
+    flareTex = new RGBELoader(manager).load((new URL('../assets/flare.hdr', import.meta.url)).toString())
+
+    manager.onLoad = () => {
+        console.log(flareTex);
+
+        setupScene(canvas);
+    }
 }
 
 function powerTwoCeilingBase(e) {
@@ -100,13 +111,13 @@ function setupScene(canvas) {
     controls = new OrbitControls(camera, canvas);
 
     mesh1 = new Mesh(
-        new IcosahedronGeometry(0.01, 1),
-        new MeshPhysicalMaterial({ flatShading: true, roughness: 0, color: 0xff0000, emissive: new Color(1, 0, 0), emissiveIntensity: 1.1, toneMapped: false })
+        new IcosahedronGeometry(0.4, 1),
+        new MeshPhysicalMaterial({ flatShading: true, roughness: 0, color: 0xff0000, emissive: new Color(1, 0, 0), emissiveIntensity: .2, toneMapped: false })
     );
     scene.add(mesh1);
 
     l1 = new PointLight();
-    l1.color = new Color(1, 0, 0);
+    l1.color = new Color(1, 1, 1);
     l1.intensity = 3;
     l1.position.z = 1;
     scene.add(l1);
@@ -131,6 +142,7 @@ function setupScene(canvas) {
     flareMaterial = new ShaderMaterial({
         uniforms: {
             uAspect: {value: aspect},
+            uFlareTexture: {value: flareTex}
         },
         vertexShader: QuadGeometry.vertexShader,
         fragmentShader: flareFrag,
@@ -189,8 +201,6 @@ function setupScene(canvas) {
         //internalFormat: 'RGBA32F',
         magFilter: LinearFilter,
         minFilter: LinearFilter,
-        wrapT: ClampToEdgeWrapping,
-        wrapS: ClampToEdgeWrapping
     });
     rtFFT_0 = rtFFT_1.clone();
     rtFFT_2 = rtFFT_1.clone();

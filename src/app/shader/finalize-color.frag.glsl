@@ -58,15 +58,22 @@ void main() {
 
     vec4 bloomColor = texture(uBloom, bloomUv);
 
+//    outColor = vec4(texture(uBloom, vUv).rgb * .1, 1.);
+//    return;
+
     vec4 color = sceneColor;
 
-    color.rgb += bloomColor.rgb * 0.004;
+//    vec4 fft = texture(uBloom, vUv); //fract(vUv + .5));
+//    outColor = vec4(abs(fft.x) * 100.,0., abs(fft.z) * 100., 1.);
+//    outColor = vec4(fft.rgb * .1, 1.);
+//    return;
 
-    outColor.rgb = bloomColor.rgb * uBloomAmount;
-    outColor.a = 1.;
-    return;
 
-    outColor = vec4((NeutralToneMapping(color.rgb)), 1.);
+    bloomColor.rgb = bloomColor.rgb * uBloomAmount;
 
-    outColor = fromLinear(outColor);
+    color.rgb += bloomColor.rgb * .004;
+
+    color = vec4((NeutralToneMapping(color.rgb)), 1.);
+
+    outColor = fromLinear(color);
 }

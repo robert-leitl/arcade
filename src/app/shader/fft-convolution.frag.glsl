@@ -19,6 +19,5 @@ void main(){
     // { Real1, Real2,  Img1,   Img2 }
     vec2 r1 = multiplyComplex(a.xz, b.xz);
     vec2 r2 = multiplyComplex(a.yw, b.yw);
-    outColor = vec4(a.xy * b.xy - a.zw * b.zw, a.xy * b.zw + a.zw * b.xy);
     outColor = vec4(r1.x, r2.x, r1.y, r2.y);
 }

@@ -41,5 +41,8 @@ void main() {
     twiddleArgument = (uForward ? TWOPI : -TWOPI) * (index / uSubtransformSize);
     twiddle = vec2(cos(twiddleArgument), sin(twiddleArgument));
 
-    outColor = (even+vec4(twiddle.x*odd.xy-twiddle.y*odd.zw,twiddle.y*odd.xy+twiddle.x*odd.zw)) * uNormalization;
+    outColor = (even + vec4(
+        twiddle.x * odd.xy - twiddle.y * odd.zw,
+        twiddle.y * odd.xy + twiddle.x * odd.zw
+    )) * uNormalization;
 }

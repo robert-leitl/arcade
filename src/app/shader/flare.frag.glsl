@@ -1,4 +1,5 @@
 uniform vec2 uAspect;
+uniform sampler2D uFlareTexture;
 
 in vec2 vUv;
 
@@ -17,5 +18,13 @@ void main(){
                 exp(-length(rotToCenter*vec2(1.0,8.0))*37.5)*12.+
                 exp(-length(rotToCenter*vec2(1.0,20.0))*75.0)*300.+
                 exp(-length(rotToCenter*vec2(20.0,1.0))*75.0)*300.;
-    outColor=vec4(res,res,0.,0.);
+    outColor = vec4(res, res, 0., 0.);
+
+    float scale = 2.;
+    vec2 st = fract(vUv + .5) * 2. - 1.;
+    st *= uAspect * scale;
+    st = st * .5 + .5;
+    vec2 texUv = st;
+    vec4 flareTex = texture(uFlareTexture, texUv);
+    outColor = vec4(flareTex.r, flareTex.r, 0., 0.) * 10.;
 }

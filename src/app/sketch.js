@@ -16,6 +16,7 @@ import finalizeColorFrag from './shader/finalize-color.frag.glsl';
 import fftFrag from './shader/fft.frag.glsl';
 import flareFrag from './shader/flare.frag.glsl';
 import fftConvolutionFrag from './shader/fft-convolution.frag.glsl';
+import raymarchFrag from './shader/raymarch.frag.glsl';
 import {OrbitControls, RGBELoader} from 'three/addons';
 import {Blit} from '../libs/blit.js';
 
@@ -53,7 +54,7 @@ let mesh1, quadMesh, l1;
 
 let rtScene, rtFFT_0, rtFFT_1, rtFFT_2, rtFlare_0, rtFlare_1, rtFlare_2;
 
-let fftMaterial, finalizeColorMaterial, flareMaterial, fftConvolutionMaterial;
+let fftMaterial, finalizeColorMaterial, flareMaterial, fftConvolutionMaterial, raymarchMaterial;
 
 const flareSize = new Vector2();
 const convolutionSize = new Vector2();
@@ -96,8 +97,8 @@ function pow2ceil(v) {
 }
 
 function setupScene(canvas) {
-    camera = new THREE.PerspectiveCamera( 20, window.innerWidth / window.innerHeight, 1, 10 );
-    camera.position.set(0, 0, 5);
+    camera = new THREE.PerspectiveCamera( 20, window.innerWidth / window.innerHeight, 5, 30 );
+    camera.position.set(0, 0, 15);
     camera.lookAt(new Vector3());
 
     scene = new THREE.Scene();
@@ -151,7 +152,6 @@ function setupScene(canvas) {
         glslVersion: GLSL3,
         toneMapped: false
     });
-
     fftConvolutionMaterial = new ShaderMaterial({
         uniforms: {
             uFFT: { value: null },
@@ -164,7 +164,6 @@ function setupScene(canvas) {
         glslVersion: GLSL3,
         toneMapped: false
     });
-
     fftMaterial = new ShaderMaterial({
         uniforms: {
             uSrc: {value: null},
@@ -179,7 +178,21 @@ function setupScene(canvas) {
         depthWrite: false,
         depthTest: false,
         glslVersion: GLSL3,
-    })
+    });
+    raymarchMaterial = new ShaderMaterial({
+        uniforms: {
+            uCamPos: { value: camera.position },
+            uCamToWorldMat: { value: camera.matrixWorld },
+            uCamInvProjMat: { value: camera.projectionMatrixInverse },
+            uResolution: { value: viewportSize.clone() },
+            uTime: { value: 0 },
+        },
+        vertexShader: QuadGeometry.vertexShader,
+        fragmentShader: raymarchFrag,
+        depthWrite: false,
+        depthTest: false,
+        glslVersion: GLSL3,
+    });
 
     quadMesh = new Mesh(
         new QuadGeometry(),
@@ -237,16 +250,14 @@ function computeBloomSizes() {
     bloomUvViewport.z = bloomUvViewport.x + bloomDownSampleViewport.z / convolutionSize.x;
     bloomUvViewport.w = bloomUvViewport.y + bloomDownSampleViewport.w / convolutionSize.y;
 
-    console.log(bloomUvViewport, convolutionSize)
-
-    const amount = (viewportSize.x * viewportSize.y) * .0000002;
+    const bloomStrength = 1;
+    const amount = (bloomStrength * 1e6) / Math.pow(powerTwoCeilingBase(viewportSize.x * viewportSize.y), 5);
     finalizeColorMaterial.uniforms.uBloomAmount.value = amount;
+    console.log(amount);
 
 
     let h = convolutionSize.y / Math.max(convolutionSize.x, convolutionSize.y);
     flareMaterial.uniforms.uAspect.value = new Vector2(convolutionSize.x / convolutionSize.y * h, h);
-
-    console.log(viewportSize.x / viewportSize.y, bloomDownSampleViewport.z / bloomDownSampleViewport.w)
 }
 
 function run(t = 0) {
@@ -281,6 +292,8 @@ function resize() {
         rtFlare_2.setSize(flareSize.x, flareSize.y);
 
         fftMaterial.uniforms.uTexelSize.value = new Vector2(1 / convolutionSize.x, 1 / convolutionSize.y);
+
+        raymarchMaterial.uniforms.uResolution.value.copy(viewportSize);
     }
 }
 
@@ -288,6 +301,8 @@ function animate() {
     if (controls) controls.update();
 
     //l1.position.set(Math.cos(time * 0.0005), Math.sin(time * 0.0005), 0);
+
+    raymarchMaterial.uniforms.uTime.value = time;
 }
 
 function fft(opts) {
@@ -365,7 +380,9 @@ function fft(opts) {
 
 function render() {
     renderer.setRenderTarget(rtScene);
-    renderer.render( scene, camera );
+    quadMesh.material = raymarchMaterial;
+    quadMesh.visible = true;
+    renderer.render( quadMesh, camera );
 
     const viewport = rtFFT_0.viewport.clone();
     rtFFT_0.viewport = bloomDownSampleViewport;

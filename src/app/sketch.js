@@ -4,8 +4,8 @@ import {
     Color, DirectionalLight, FloatType, GLSL3, HalfFloatType,
     IcosahedronGeometry, LinearFilter, LoadingManager,
     Mesh, MeshPhysicalMaterial,
-    MeshStandardMaterial, NearestFilter, PointLight, RawShaderMaterial,
-    Raycaster, RGBAFormat, ShaderMaterial,
+    MeshStandardMaterial, NearestFilter, NoToneMapping, PointLight, RawShaderMaterial,
+    Raycaster, RepeatWrapping, RGBAFormat, ShaderMaterial, TextureLoader,
     Vector2,
     Vector3, Vector4,
     WebGLRenderTarget
@@ -67,7 +67,7 @@ const bloomViewportPaddingPercent = 0.1;
 const bloomUvViewport = new Vector4();
 
 
-let flareTex;
+let flareTex, blueNoiseTex;
 
 function init(canvas, onInit = null, isDev = false, pane = null) {
     _isDev = isDev;
@@ -80,6 +80,7 @@ function init(canvas, onInit = null, isDev = false, pane = null) {
     const manager = new LoadingManager();
 
     flareTex = new RGBELoader(manager).load((new URL('../assets/flare.hdr', import.meta.url)).toString())
+    blueNoiseTex = new TextureLoader(manager).load((new URL('../assets/blue-noise-pattern.jpeg', import.meta.url)).toString())
 
     manager.onLoad = () => {
         console.log(flareTex);
@@ -104,12 +105,14 @@ function setupScene(canvas) {
     scene = new THREE.Scene();
 
     renderer = new THREE.WebGLRenderer( { canvas, antialias: true } );
+    renderer.toneMapping = NoToneMapping;
     viewportSize = new Vector2(renderer.domElement.clientWidth, renderer.domElement.clientHeight);
     renderer.setSize(viewportSize.x, viewportSize.y, false);
 
     raycaster = new Raycaster();
 
     controls = new OrbitControls(camera, canvas);
+    controls.enableDamping = true;
 
     mesh1 = new Mesh(
         new IcosahedronGeometry(0.4, 1),
@@ -122,6 +125,8 @@ function setupScene(canvas) {
     l1.intensity = 3;
     l1.position.z = 1;
     scene.add(l1);
+
+    blueNoiseTex.wrapS = blueNoiseTex.wrapT = RepeatWrapping;
 
     finalizeColorMaterial = new ShaderMaterial({
         uniforms: {
@@ -178,6 +183,7 @@ function setupScene(canvas) {
         depthWrite: false,
         depthTest: false,
         glslVersion: GLSL3,
+        toneMapped: false
     });
     raymarchMaterial = new ShaderMaterial({
         uniforms: {
@@ -186,12 +192,14 @@ function setupScene(canvas) {
             uCamInvProjMat: { value: camera.projectionMatrixInverse },
             uResolution: { value: viewportSize.clone() },
             uTime: { value: 0 },
+            uBlueNoiseTexture: { value: blueNoiseTex },
         },
         vertexShader: QuadGeometry.vertexShader,
         fragmentShader: raymarchFrag,
         depthWrite: false,
         depthTest: false,
         glslVersion: GLSL3,
+        toneMapped: false
     });
 
     quadMesh = new Mesh(

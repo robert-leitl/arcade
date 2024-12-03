@@ -3,19 +3,22 @@ uniform mat4 uCamToWorldMat;
 uniform mat4 uCamInvProjMat;
 uniform vec2 uResolution;
 uniform float uTime;
+uniform sampler2D uBlueNoiseTexture;
 
 in vec2 vUv;
 
 layout(location = 0) out vec4 outColor;
 
-float eps = 0.001;
-float maxDis = 100.;
-int maxSteps = 60;
-vec3 lightDir = vec3(0., 1., 0.);
-vec3 lightColor = vec3(1.);
-float diffIntensity = 0.7;
-float specIntensity = .05;
-float ambientIntensity = 0.075;
+#include <common>
+
+float eps = 0.0001;
+float maxDis = 50.;
+int maxSteps = 50;
+vec3 L = vec3(3., 10., -5.);
+vec3 lightColor = vec3(1., .95, 0.92);
+float diffIntensity = 0.5;
+float specIntensity = .1;
+float ambientIntensity = 0.045;
 float shininess = 10.;
 
 //	Simplex 3D Noise
@@ -173,22 +176,39 @@ float smin(float a, float b, float k) { // smooth min function
     return mix(b, a, h) - k * h * (1.0 - h);
 }
 
+float sdTorus( vec3 p, vec2 t )
+{
+    vec2 q = vec2(length(p.xz)-t.x,p.y);
+    return length(q)-t.y;
+}
+
+float sdRoundBox( vec3 p, vec3 b, float r )
+{
+    vec3 q = abs(p) - b + r;
+    return length(max(q,0.0)) + min(max(q.x,max(q.y,q.z)),0.0) - r;
+}
+
 float scene(vec3 p) {
     vec4 n = noised(p * 2.);
 
     // distance to sphere 1
-    float sphere1Dis = distance(p, vec3(0., 0., 0)) - 1.;
-    sphere1Dis += n.x * 0.1;
-    return sphere1Dis;
+    float sd = distance(p, vec3(0., 0., 0)) - 1.;
+    sd += n.x * 0.1;
 
-    // distance to sphere 2
-    float sphere2Dis = distance(p, vec3(1., 0., 0)) - 0.75;
+    //return sd;
 
-    // return the minimum distance between the two spheres smoothed by 0.5
-    return smin(sphere1Dis, sphere2Dis, 0.5);
+    float td = sdTorus(p, vec2(1., .4));
+    td += n.x * 0.1;
+
+    return td;
+
+    float bd = sdRoundBox(p, vec3(1.), 0.2);
+    bd += n.x * 0.1;
+
+    return bd;
 }
 
-float rayMarch(vec3 ro, vec3 rd)
+float findSurfaceIntersectionDist(vec3 ro, vec3 rd)
 {
     float d = 0.; // total distance travelled
     float cd; // current scene distance
@@ -208,6 +228,37 @@ float rayMarch(vec3 ro, vec3 rd)
 
     return d; // finally, return scene distance
 }
+
+float getSurfaceExitIntersectionDist(
+    vec3 ro,
+    vec3 rd
+) {
+    // raymarch constants
+    float stepSize = 0.2;
+    float stepMult = 1.;
+    int steps = 8;
+
+    vec4 blueNoise = texture(uBlueNoiseTexture, gl_FragCoord.xy / 1024.);
+    float offset = fract(blueNoise.r) * 2. - 1.;
+
+    vec3 p = ro + rd * offset * .75;
+    float currStepSize = stepSize;
+    float exitDist = 0.;
+
+    for(int i = 0; i < steps; i++) {
+        exitDist += currStepSize;
+        p += currStepSize * rd;
+
+        float cd = scene(p);
+
+        if(cd >= 0.) break;
+
+        currStepSize *= stepMult;
+    }
+
+    return exitDist;
+}
+
 
 vec3 normal(vec3 p) // from https://iquilezles.org/articles/normalsSDF/
 {
@@ -245,61 +296,120 @@ vec4 fbmD( in vec3 x, in float H )
     return t;
 }
 
+float HenyeyGreenstein(float g, float costh) {
+    float gg = g * g;
+    return (1.0 / (4.0 * PI))  * ((1.0 - gg) / pow(1.0 + gg - 2.0 * g * costh, 1.5));
+}
+
+vec3 getTransmittance(float dist, vec3 sigma) {
+    vec3 tau = sigma * dist;
+    vec3 tr = exp(-tau);
+
+    return tr;
+}
+
 void main(){
     vec3 color = vec3(0.);
+
+    vec3 backgroundColor = vec3(.02);
 
     // Get UV from vertex shader
     vec2 uv = vUv.xy;
 
     // Get ray origin and direction from camera uniforms
     vec3 ro = uCamPos;
-    vec3 rd = (uCamInvProjMat * vec4(uv*2.-1., 0, 1)).xyz;
+    vec3 rd = (uCamInvProjMat * vec4(uv * 2.-1., 0, 1)).xyz;
     rd = (uCamToWorldMat * vec4(rd, 0)).xyz;
     rd = normalize(rd);
 
     // Ray marching and find total distance travelled
-    float disTravelled = rayMarch(ro, rd); // use normalized ray
+    float surfaceEntryDist = findSurfaceIntersectionDist(ro, rd); // use normalized ray
 
     // Find the hit position
-    vec3 hp = ro + disTravelled * rd;
+    vec3 surfaceEntryPoint = ro + surfaceEntryDist * rd;
 
     // Get normal of hit point
-    vec3 n = calcNormal(hp);
+    vec3 normal = calcNormal(surfaceEntryPoint);
 
-    if (disTravelled >= maxDis) { // if ray doesn't hit anything
-        color = vec3(.01);
-    } else { // if ray hits something
-        vec4 n1 = fbmD( 5. * hp, .75 );
+    if (surfaceEntryDist >= maxDis) { // if ray doesn't hit anything
+        color = backgroundColor;
+    } else {
+        // if ray hits something
 
-        vec3 N = n + n1.yzw * .1;
+        // ray march the volume
+        ro = surfaceEntryPoint - normal * eps; // offset the ray origin to be inside the object
+        float surfaceExitDist = getSurfaceExitIntersectionDist(ro, rd);
+
+        // transmittance params
+        vec3 baseColor = vec3(68. / 255., 88. / 255., 121. / 255.) * .1;
+        float maxDist = .5;
+        vec3 tc = vec3(0.1, 0.13, 0.3);
+        vec3 sigma = vec3(log(tc.r), log(tc.g), log(tc.b)) / maxDist;
+
+        // accumulate scattered light
+        int accSteps = 6;
+        float accStepSize = surfaceExitDist / float(accSteps);
+        ro = surfaceEntryPoint;
+        vec3 p = ro;
+        vec3 scatteredLight = vec3(0.);
+        float stepDist = 0.;
+        for(int i = 0; i < accSteps; i++) {
+            p += accStepSize * rd;
+
+            stepDist += accStepSize;
+
+            vec3 lDir = normalize(L - p);
+            float ld = getSurfaceExitIntersectionDist(p, lDir);
+
+            float phase = HenyeyGreenstein(.3, dot(lDir, rd));
+            scatteredLight += exp(ld * sigma) * lightColor * phase * 2.;
+
+            scatteredLight *= exp(stepDist * sigma);
+        }
+
+        vec3 transmittedColor = baseColor + scatteredLight;
+
+        // pertube normals
+        vec4 n1 = fbmD( 8. * surfaceEntryPoint, .5 );
+        vec3 N = normal + n1.yzw * .1;
 
         // Calculate Diffuse model
-        float dotNL = clamp(dot(N, lightDir), 0., 1.);
-        vec3 viewDir = -rd;
-        vec3 H = normalize(lightDir + viewDir);
-        //Intensity of the specular light
+        float NdotL = clamp(dot(N, L), 0., 1.);
+        vec3 V = -rd;
+        vec3 H = normalize(normalize(L) + V);
         float NdotH = clamp(dot(N, H), 0., 1.);
-        float diff = max(dotNL, 0.0) * diffIntensity;
+        float diff = max(NdotL, 0.0) * diffIntensity;
         float spec = pow(NdotH, shininess) * specIntensity;
         float ambient = ambientIntensity;
 
-        color = lightColor * (vec3(.8, .9, 1.) * (ambient + diff) + spec);
+        vec3 reflectedColor = vec3(.1) * diff + spec;
 
-        float uvSpark = snoise(hp * 40. + uTime * 0.0001);
+
+        // TODO generalize glint effect
+
+        float uvSpark = snoise(surfaceEntryPoint * 40. + uTime * 0.0001);
         uvSpark = smoothstep(0.4, 1., uvSpark);
         float viewportSpark = snoise((vec2(gl_FragCoord.xy) / uResolution) * 100.);
         viewportSpark = smoothstep(0.5, 1., viewportSpark);
 
-        float glints = (uvSpark * viewportSpark) * dotNL;
-        glints = min(200., pow(glints * 5., 7.));
+        float glints = (uvSpark * viewportSpark) * NdotL;
+        glints = min(400., pow(glints * 5., 7.));
 
-        float uvSpark2 = snoise(hp * 50.);
+        float uvSpark2 = snoise(surfaceEntryPoint * 50.);
         uvSpark2 = smoothstep(0.3, 1., uvSpark2);
         float viewportSpark2 = snoise((vec2(gl_FragCoord.xy) / uResolution) * 70.);
         viewportSpark2 = smoothstep(0.4, 1., viewportSpark2);
-        float glints2 = (uvSpark2 * viewportSpark2) * dotNL * .5;
+        float glints2 = (uvSpark2 * viewportSpark2) * NdotL * .5;
 
-        color += (glints + glints2);
+        float uvSpark3 = snoise(V + surfaceEntryPoint * 40.);
+        uvSpark3 = smoothstep(0.2, 1., uvSpark3);
+        float viewportSpark3 = snoise((vec2(gl_FragCoord.xy) / uResolution) * 30.);
+        viewportSpark3 = smoothstep(0.3, 1., viewportSpark3);
+        float glints3 = (uvSpark3 * viewportSpark3) * NdotL * .1;
+
+        reflectedColor += (glints + glints2 + glints3);
+
+        color = transmittedColor + reflectedColor;
     }
 
     outColor = vec4(color, 1.);

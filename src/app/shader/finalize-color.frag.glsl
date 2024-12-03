@@ -69,13 +69,13 @@ void main() {
 //    return;
 
 
-    //bloomColor.rgb = bloomColor.rgb * uBloomAmount;
+    bloomColor.rgb = bloomColor.rgb * uBloomAmount;
 
     color.rgb += bloomColor.rgb * uBloomAmount * .005;
 
-    //color = vec4((NeutralToneMapping(color.rgb)), 1.);
+    color = vec4((NeutralToneMapping(color.rgb)), 1.);
 
-    //color = fromLinear(color);
+    color = fromLinear(color);
 
     outColor = color;
 }

@@ -16,7 +16,7 @@ float maxDis = 50.;
 int maxSteps = 50;
 vec3 L = vec3(3., 10., -5.);
 vec3 lightColor = vec3(1., .95, 0.92);
-float diffIntensity = 0.5;
+float diffIntensity = 0.02;
 float specIntensity = .1;
 float ambientIntensity = 0.045;
 float shininess = 10.;
@@ -311,7 +311,7 @@ vec3 getTransmittance(float dist, vec3 sigma) {
 void main(){
     vec3 color = vec3(0.);
 
-    vec3 backgroundColor = vec3(.02);
+    vec3 backgroundColor = vec3(0.9, 0.93, 1.) * .01;
 
     // Get UV from vertex shader
     vec2 uv = vUv.xy;
@@ -341,8 +341,8 @@ void main(){
         float surfaceExitDist = getSurfaceExitIntersectionDist(ro, rd);
 
         // transmittance params
-        vec3 baseColor = vec3(68. / 255., 88. / 255., 121. / 255.) * .1;
-        float maxDist = .5;
+        vec3 baseColor = vec3(68. / 255., 88. / 255., 121. / 255.) * .02;
+        float maxDist = 0.1;
         vec3 tc = vec3(0.1, 0.13, 0.3);
         vec3 sigma = vec3(log(tc.r), log(tc.g), log(tc.b)) / maxDist;
 
@@ -362,12 +362,10 @@ void main(){
             float ld = getSurfaceExitIntersectionDist(p, lDir);
 
             float phase = HenyeyGreenstein(.3, dot(lDir, rd));
-            scatteredLight += exp(ld * sigma) * lightColor * phase * 2.;
-
-            scatteredLight *= exp(stepDist * sigma);
+            scatteredLight += (exp(ld * sigma) * lightColor * phase * 2.) * exp(stepDist * sigma * 1.1);
         }
 
-        vec3 transmittedColor = baseColor + scatteredLight;
+        vec3 transmittedColor = baseColor + scatteredLight * 3.;
 
         // pertube normals
         vec4 n1 = fbmD( 8. * surfaceEntryPoint, .5 );
@@ -382,7 +380,10 @@ void main(){
         float spec = pow(NdotH, shininess) * specIntensity;
         float ambient = ambientIntensity;
 
-        vec3 reflectedColor = vec3(.1) * diff + spec;
+        float wrap = 10.;
+        float wrap_diffuse = max(0., (dot(L, normal + n1.yzw * .01) + wrap) / (1. + wrap));
+
+        vec3 reflectedColor = vec3(1.) * diff;
 
 
         // TODO generalize glint effect
@@ -392,20 +393,21 @@ void main(){
         float viewportSpark = snoise((vec2(gl_FragCoord.xy) / uResolution) * 100.);
         viewportSpark = smoothstep(0.5, 1., viewportSpark);
 
-        float glints = (uvSpark * viewportSpark) * NdotL;
+        float glintAttenuation = NdotL * .7 + .3;
+        float glints = (uvSpark * viewportSpark) * glintAttenuation;
         glints = min(400., pow(glints * 5., 7.));
 
         float uvSpark2 = snoise(surfaceEntryPoint * 50.);
         uvSpark2 = smoothstep(0.3, 1., uvSpark2);
         float viewportSpark2 = snoise((vec2(gl_FragCoord.xy) / uResolution) * 70.);
         viewportSpark2 = smoothstep(0.4, 1., viewportSpark2);
-        float glints2 = (uvSpark2 * viewportSpark2) * NdotL * .5;
+        float glints2 = (uvSpark2 * viewportSpark2) * glintAttenuation * .5;
 
         float uvSpark3 = snoise(V + surfaceEntryPoint * 40.);
         uvSpark3 = smoothstep(0.2, 1., uvSpark3);
         float viewportSpark3 = snoise((vec2(gl_FragCoord.xy) / uResolution) * 30.);
         viewportSpark3 = smoothstep(0.3, 1., viewportSpark3);
-        float glints3 = (uvSpark3 * viewportSpark3) * NdotL * .1;
+        float glints3 = (uvSpark3 * viewportSpark3) * glintAttenuation * .1;
 
         reflectedColor += (glints + glints2 + glints3);
 

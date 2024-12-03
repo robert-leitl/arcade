@@ -387,6 +387,12 @@ function fft(opts) {
 }
 
 function render() {
+
+    // TODO render down sampled version of transmitted color
+    // TODO render down sampled version of diffuse reflection for fake sss
+    // TODO blur fake sss fbo
+    // TODO render full resolution surface reflections and glints on top of transmitted color and sss
+
     renderer.setRenderTarget(rtScene);
     quadMesh.material = raymarchMaterial;
     quadMesh.visible = true;

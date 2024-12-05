@@ -233,11 +233,13 @@ float scene(vec3 p) {
     vec4 paint = texture(uPaint, cp.xy * .5 + .5);
     float maxDepth = 2. * (length(paint.w) * .5 + .5);
     vec2 p2d = vec2(1. - sin(paint.r * 9.), (co.z + length(uCamPos) + maxDepth * .5));
+    //vec2 p2d = vec2(1. - paint.r, (co.z + length(uCamPos) + maxDepth * .5));
     //float sc = sdCircle(p2d.xy, .5);
     float sc = sdBox(p2d.xy, vec2(0.15, maxDepth)) - .1;
     //sc += n.x * .7 * paint.r;
 
     // distance to sphere 1
+    p.xy -= paint.yz * .1 * paint.w;
     float sd = distance(p, vec3(0., 0., 0)) - 1.5;
     //sd += n.x * 0.1;
 
@@ -280,12 +282,12 @@ float getSurfaceExitIntersectionDist(
     vec3 rd
 ) {
     // raymarch constants
-    float stepSize = 0.2;
-    float stepMult = 1.;
+    float stepSize = 0.1;
+    float stepMult = 1.4;
     int steps = 8;
 
     vec4 blueNoise = texture(uBlueNoiseTexture, gl_FragCoord.xy / 1024.);
-    float offset = fract(blueNoise.r) * 2. - 1.;
+    float offset = 0.; //fract(blueNoise.r) * 2. - 1.;
 
     vec3 p = ro + rd * offset * .75;
     float currStepSize = stepSize;
@@ -297,7 +299,10 @@ float getSurfaceExitIntersectionDist(
 
         float cd = scene(p);
 
-        if(cd >= 0.) break;
+        if(cd >= 0.) {
+            exitDist = exitDist - findSurfaceIntersectionDist(p + rd * stepSize, -rd);
+            break;
+        }
 
         currStepSize *= stepMult;
     }
@@ -406,6 +411,11 @@ void main(){
 //        outColor = vec4(N, 1.);
 //        return;
 
+        // ray march the volume
+        ro = surfaceEntryPoint - normal * eps; // offset the ray origin to be inside the object
+        float surfaceExitDist = getSurfaceExitIntersectionDist(ro, rd);
+
+
         // Calculate Diffuse model
         float NdotL = clamp(dot(N, L), 0., 1.);
         vec3 V = -rd;
@@ -415,7 +425,7 @@ void main(){
         float spec = pow(NdotH, shininess) * specIntensity;
         float ambient = ambientIntensity;
 
-        color = vec3(diff + ambientIntensity);
+        color = vec3(diff + ambientIntensity + surfaceExitDist * .1);
     }
 
     outColor = vec4(color, 1.);

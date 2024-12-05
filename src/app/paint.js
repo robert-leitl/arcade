@@ -4,7 +4,7 @@ import paintFrag from './shader/paint.frag.glsl';
 
 export class Paint {
 
-    RENDER_SCALE = 0.5;
+    RENDER_SCALE = .25;
 
     currentSwapIndex = 0;
     swapRenderTargets = [];

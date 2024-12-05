@@ -59,9 +59,9 @@ void main() {
     // mask the velocity
     vel *= velocityMask;
     // combine the new velocity with a bit of the current samples velocity
-    vel = (prevPaint.yz * .5 + vel * .5);
+    vel = (prevPaint.yz * 1. + vel * 1.);
     // dissipate the velocity over time
-    vel *= 0.999;
+    vel *= 0.94;
 
     // the strength according to the velocity
     paint = min(1., paint * strength * 200.);
@@ -70,7 +70,7 @@ void main() {
     paint += prevPaint.x;
     paint = clamp(paint, 0., 1.);
     // dissipate the paint over time
-    paint *= 0.955;
+    paint *= 0.935;
 
     data.r = paint;
     data.yz = vel;

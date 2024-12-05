@@ -10,7 +10,7 @@ in vec2 vUv;
 
 uniform float toneMappingExposure;
 
-#define DITHERING 1
+#define DITHERING 0
 
 #include <common>
 #include <dithering_pars_fragment>

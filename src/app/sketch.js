@@ -101,8 +101,8 @@ function init(canvas, onInit = null, isDev = false, pane = null) {
 }
 
 function setupScene(canvas) {
-    camera = new THREE.PerspectiveCamera( 20, window.innerWidth / window.innerHeight, 5, 30 );
-    camera.position.set(0, 0, 15);
+    camera = new THREE.PerspectiveCamera( 45, window.innerWidth / window.innerHeight, 5, 30 );
+    camera.position.set(0, 0, 6);
     camera.lookAt(new Vector3());
 
     scene = new THREE.Scene();

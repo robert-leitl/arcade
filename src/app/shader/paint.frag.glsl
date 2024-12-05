@@ -75,7 +75,7 @@ void main() {
     data.r = paint;
     data.yz = vel;
     data.w = (length(vel) + prevPaint.w) * .5;
-    data.w *= .99;
+    data.w *= .95;
 
     data.a = 1.;
 

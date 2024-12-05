@@ -224,17 +224,18 @@ float opSmoothSubtraction( float d1, float d2, float k )
 }
 
 float scene(vec3 p) {
-    vec4 n = noised(p * 2.);
+    vec4 n = noised(p * vec3(13., 13., 1.));
 
     vec3 co = (viewMatrix * vec4(p, 1.)).xyz;
     vec3 cp = (projectionMatrix * vec4(co, 0.)).xyz;
-    cp *= 0.06;
+    cp *= 0.15;
 
     vec4 paint = texture(uPaint, cp.xy * .5 + .5);
     float maxDepth = 2. * (length(paint.w) * .5 + .5);
-    vec2 p2d = vec2(1. - paint.r, (co.z + length(uCamPos) + maxDepth * .5));
+    vec2 p2d = vec2(1. - sin(paint.r * 9.), (co.z + length(uCamPos) + maxDepth * .5));
     //float sc = sdCircle(p2d.xy, .5);
-    float sc = sdBox(p2d.xy, vec2(0.2, maxDepth)) - .2;
+    float sc = sdBox(p2d.xy, vec2(0.15, maxDepth)) - .1;
+    //sc += n.x * .7 * paint.r;
 
     // distance to sphere 1
     float sd = distance(p, vec3(0., 0., 0)) - 1.5;
@@ -402,8 +403,8 @@ void main(){
         vec4 n1 = fbmD( 8. * surfaceEntryPoint, .5 );
         vec3 N = normal; // + n1.yzw * .1;
 
-        outColor = vec4(N, 1.);
-        return;
+//        outColor = vec4(N, 1.);
+//        return;
 
         // Calculate Diffuse model
         float NdotL = clamp(dot(N, L), 0., 1.);

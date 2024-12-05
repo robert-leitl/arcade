@@ -4,6 +4,8 @@ uniform mat4 uCamInvProjMat;
 uniform vec2 uResolution;
 uniform float uTime;
 uniform sampler2D uBlueNoiseTexture;
+uniform int uRenderStage;
+uniform sampler2D uEnvMapTexture;
 
 in vec2 vUv;
 
@@ -14,8 +16,8 @@ layout(location = 0) out vec4 outColor;
 float eps = 0.0001;
 float maxDis = 50.;
 int maxSteps = 50;
-vec3 L = vec3(3., 10., -5.);
-vec3 lightColor = vec3(1., .95, 0.92);
+vec3 L = vec3(10., 3., -10.);
+vec3 lightColor = vec3(1.);
 float diffIntensity = 0.02;
 float specIntensity = .1;
 float ambientIntensity = 0.045;
@@ -200,7 +202,7 @@ float scene(vec3 p) {
     float td = sdTorus(p, vec2(1., .4));
     td += n.x * 0.1;
 
-    return td;
+    //return td;
 
     float bd = sdRoundBox(p, vec3(1.), 0.2);
     bd += n.x * 0.1;
@@ -322,6 +324,9 @@ void main(){
     rd = (uCamToWorldMat * vec4(rd, 0)).xyz;
     rd = normalize(rd);
 
+    // Get the environment texture color
+    vec4 envColor = texture(uEnvMapTexture, equirectUv(normalize(rd + vec3(0., 0., 0.8))));
+
     // Ray marching and find total distance travelled
     float surfaceEntryDist = findSurfaceIntersectionDist(ro, rd); // use normalized ray
 
@@ -332,7 +337,7 @@ void main(){
     vec3 normal = calcNormal(surfaceEntryPoint);
 
     if (surfaceEntryDist >= maxDis) { // if ray doesn't hit anything
-        color = backgroundColor;
+        color = envColor.rgb;
     } else {
         // if ray hits something
 
@@ -341,9 +346,9 @@ void main(){
         float surfaceExitDist = getSurfaceExitIntersectionDist(ro, rd);
 
         // transmittance params
-        vec3 baseColor = vec3(68. / 255., 88. / 255., 121. / 255.) * .02;
-        float maxDist = 0.1;
-        vec3 tc = vec3(0.1, 0.13, 0.3);
+        vec3 baseColor = vec3(.5);
+        float maxDist = 0.5;
+        vec3 tc = vec3(0.1, 0.12, 0.2);
         vec3 sigma = vec3(log(tc.r), log(tc.g), log(tc.b)) / maxDist;
 
         // accumulate scattered light
@@ -362,10 +367,15 @@ void main(){
             float ld = getSurfaceExitIntersectionDist(p, lDir);
 
             float phase = HenyeyGreenstein(.3, dot(lDir, rd));
-            scatteredLight += (exp(ld * sigma) * lightColor * phase * 2.) * exp(stepDist * sigma * 1.1);
+            scatteredLight += (exp(ld * sigma) * (lightColor) * phase * 2.) * exp(stepDist * sigma * 1.1);
         }
 
         vec3 transmittedColor = baseColor + scatteredLight * 3.;
+
+        if (uRenderStage == 0) {
+            outColor = vec4(transmittedColor * .1, 1.);
+            return;
+        }
 
         // pertube normals
         vec4 n1 = fbmD( 8. * surfaceEntryPoint, .5 );

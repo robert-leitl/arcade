@@ -52,7 +52,7 @@ var _isDev,
 
 let mesh1, quadMesh, l1;
 
-let rtScene, rtFFT_0, rtFFT_1, rtFFT_2, rtFlare_0, rtFlare_1, rtFlare_2;
+let rtScene, rtVolume, rtFFT_0, rtFFT_1, rtFFT_2, rtFlare_0, rtFlare_1, rtFlare_2;
 
 let fftMaterial, finalizeColorMaterial, flareMaterial, fftConvolutionMaterial, raymarchMaterial;
 
@@ -66,8 +66,17 @@ const bloomDownSampleViewport = new Vector4();
 const bloomViewportPaddingPercent = 0.1;
 const bloomUvViewport = new Vector4();
 
+const volumeRenderScale = 0.5;
+let volumeRenderSize;
 
-let flareTex, blueNoiseTex;
+let flareTex, blueNoiseTex, envMapTex;
+
+function powerTwoCeilingBase(e) {
+    return Math.ceil(Math.log(e) / Math.log(2))
+}
+function pow2ceil(v) {
+    return Math.pow(2, powerTwoCeilingBase(v));
+}
 
 function init(canvas, onInit = null, isDev = false, pane = null) {
     _isDev = isDev;
@@ -81,20 +90,11 @@ function init(canvas, onInit = null, isDev = false, pane = null) {
 
     flareTex = new RGBELoader(manager).load((new URL('../assets/flare.hdr', import.meta.url)).toString())
     blueNoiseTex = new TextureLoader(manager).load((new URL('../assets/blue-noise-pattern.jpeg', import.meta.url)).toString())
+    envMapTex = new RGBELoader(manager).load((new URL('../assets/env-02.hdr', import.meta.url)).toString())
 
     manager.onLoad = () => {
-        console.log(flareTex);
-
         setupScene(canvas);
     }
-}
-
-function powerTwoCeilingBase(e) {
-    return Math.ceil(Math.log(e) / Math.log(2))
-}
-
-function pow2ceil(v) {
-    return Math.pow(2, powerTwoCeilingBase(v));
 }
 
 function setupScene(canvas) {
@@ -133,7 +133,8 @@ function setupScene(canvas) {
             uScene: {value: null},
             uBloom: {value: null},
             uBloomAmount: { value: 1 },
-            uBloomViewport: { value: bloomDownSampleViewport }
+            uBloomViewport: { value: bloomDownSampleViewport },
+            uSceneVolume: { value: null }
         },
         vertexShader: QuadGeometry.vertexShader,
         fragmentShader: finalizeColorFrag,
@@ -193,6 +194,8 @@ function setupScene(canvas) {
             uResolution: { value: viewportSize.clone() },
             uTime: { value: 0 },
             uBlueNoiseTexture: { value: blueNoiseTex },
+            uRenderStage: { value: 0 },
+            uEnvMapTexture: { value: envMapTex },
         },
         vertexShader: QuadGeometry.vertexShader,
         fragmentShader: raymarchFrag,
@@ -208,6 +211,9 @@ function setupScene(canvas) {
     );
 
     rtScene = new WebGLRenderTarget(viewportSize.x, viewportSize.y, { type: HalfFloatType, samples: 1 });
+
+    volumeRenderSize = viewportSize.clone().multiplyScalar(volumeRenderScale);
+    rtVolume = new WebGLRenderTarget(volumeRenderSize.x, volumeRenderSize.y);
 
     downsampleSceneBlit = new Blit(renderer);
 
@@ -299,6 +305,9 @@ function resize() {
         rtFlare_1.setSize(flareSize.x, flareSize.y);
         rtFlare_2.setSize(flareSize.x, flareSize.y);
 
+        volumeRenderSize = viewportSize.clone().multiplyScalar(volumeRenderScale);
+        rtVolume.setSize(volumeRenderSize.x, volumeRenderSize.y);
+
         fftMaterial.uniforms.uTexelSize.value = new Vector2(1 / convolutionSize.x, 1 / convolutionSize.y);
 
         raymarchMaterial.uniforms.uResolution.value.copy(viewportSize);
@@ -389,13 +398,17 @@ function fft(opts) {
 function render() {
 
     // TODO render down sampled version of transmitted color
+    renderer.setRenderTarget(rtVolume);
+    quadMesh.material = raymarchMaterial;
+    raymarchMaterial.uniforms.uRenderStage.value = 0;
+    renderer.render( quadMesh, camera );
+
     // TODO render down sampled version of diffuse reflection for fake sss
     // TODO blur fake sss fbo
     // TODO render full resolution surface reflections and glints on top of transmitted color and sss
 
     renderer.setRenderTarget(rtScene);
     quadMesh.material = raymarchMaterial;
-    quadMesh.visible = true;
     renderer.render( quadMesh, camera );
 
     const viewport = rtFFT_0.viewport.clone();
@@ -448,6 +461,7 @@ function render() {
     finalizeColorMaterial.uniforms.uScene.value = rtScene.texture;
     finalizeColorMaterial.uniforms.uBloom.value = rtFFT_2.texture;
     finalizeColorMaterial.uniforms.uBloomViewport.value = bloomUvViewport;
+    finalizeColorMaterial.uniforms.uSceneVolume.value = rtVolume.texture;
     renderer.render( quadMesh, camera );
 }
 

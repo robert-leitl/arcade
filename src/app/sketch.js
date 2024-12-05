@@ -19,6 +19,7 @@ import fftConvolutionFrag from './shader/fft-convolution.frag.glsl';
 import raymarchFrag from './shader/raymarch.frag.glsl';
 import {OrbitControls, RGBELoader} from 'three/addons';
 import {Blit} from '../libs/blit.js';
+import {Paint} from './paint.js';
 
 // the target duration of one frame in milliseconds
 const TARGET_FRAME_DURATION_MS = 16;
@@ -69,6 +70,8 @@ const bloomUvViewport = new Vector4();
 const volumeRenderScale = 0.5;
 let volumeRenderSize;
 
+let paint;
+
 let flareTex, blueNoiseTex, envMapTex;
 
 function powerTwoCeilingBase(e) {
@@ -108,6 +111,8 @@ function setupScene(canvas) {
     renderer.toneMapping = NoToneMapping;
     viewportSize = new Vector2(renderer.domElement.clientWidth, renderer.domElement.clientHeight);
     renderer.setSize(viewportSize.x, viewportSize.y, false);
+
+    paint = new Paint(renderer, camera, viewportSize);
 
     raycaster = new Raycaster();
 
@@ -196,6 +201,7 @@ function setupScene(canvas) {
             uBlueNoiseTexture: { value: blueNoiseTex },
             uRenderStage: { value: 0 },
             uEnvMapTexture: { value: envMapTex },
+            uPaint: { value: paint.texture },
         },
         vertexShader: QuadGeometry.vertexShader,
         fragmentShader: raymarchFrag,
@@ -311,6 +317,8 @@ function resize() {
         fftMaterial.uniforms.uTexelSize.value = new Vector2(1 / convolutionSize.x, 1 / convolutionSize.y);
 
         raymarchMaterial.uniforms.uResolution.value.copy(viewportSize);
+
+        paint.resize(viewportSize);
     }
 }
 
@@ -320,6 +328,8 @@ function animate() {
     //l1.position.set(Math.cos(time * 0.0005), Math.sin(time * 0.0005), 0);
 
     raymarchMaterial.uniforms.uTime.value = time;
+
+    paint.animate(deltaTimeMS);
 }
 
 function fft(opts) {
@@ -397,18 +407,11 @@ function fft(opts) {
 
 function render() {
 
-    // TODO render down sampled version of transmitted color
-    renderer.setRenderTarget(rtVolume);
-    quadMesh.material = raymarchMaterial;
-    raymarchMaterial.uniforms.uRenderStage.value = 0;
-    renderer.render( quadMesh, camera );
-
-    // TODO render down sampled version of diffuse reflection for fake sss
-    // TODO blur fake sss fbo
-    // TODO render full resolution surface reflections and glints on top of transmitted color and sss
+    paint.render();
 
     renderer.setRenderTarget(rtScene);
     quadMesh.material = raymarchMaterial;
+    raymarchMaterial.uniforms.uPaint.value = paint.texture;
     renderer.render( quadMesh, camera );
 
     const viewport = rtFFT_0.viewport.clone();

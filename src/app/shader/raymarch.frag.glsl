@@ -6,6 +6,8 @@ uniform float uTime;
 uniform sampler2D uBlueNoiseTexture;
 uniform int uRenderStage;
 uniform sampler2D uEnvMapTexture;
+uniform sampler2D uPaint;
+uniform mat4 projectionMatrix;
 
 in vec2 vUv;
 
@@ -16,9 +18,9 @@ layout(location = 0) out vec4 outColor;
 float eps = 0.0001;
 float maxDis = 50.;
 int maxSteps = 50;
-vec3 L = vec3(10., 3., -10.);
+vec3 L = vec3(10., 3., 3.) * .1;
 vec3 lightColor = vec3(1.);
-float diffIntensity = 0.02;
+float diffIntensity = 0.5;
 float specIntensity = .1;
 float ambientIntensity = 0.045;
 float shininess = 10.;
@@ -190,14 +192,55 @@ float sdRoundBox( vec3 p, vec3 b, float r )
     return length(max(q,0.0)) + min(max(q.x,max(q.y,q.z)),0.0) - r;
 }
 
+float sdCircle(vec2 p, float r)
+{
+    return length(p) - r;
+}
+
+float sdBox( vec2 p, vec2 b )
+{
+    vec2 d = abs(p)-b;
+    return length(max(d,0.0)) + min(max(d.x,d.y),0.0);
+}
+
+//float smin( float a, float b, float k )
+//{
+//    k *= 4.0;
+//    float h = max( k-abs(a-b), 0.0 )/k;
+//    return min(a,b) - h*h*k*(1.0/4.0);
+//}
+
+float smax( float a, float b, float k )
+{
+    k *= 1.4;
+    float h = max(k-abs(a-b),0.0);
+    return max(a, b) + h*h*h/(6.0*k*k);
+}
+
+float opSmoothSubtraction( float d1, float d2, float k )
+{
+    float h = clamp( 0.5 - 0.5*(d2+d1)/k, 0.0, 1.0 );
+    return mix( d2, -d1, h ) + k*h*(1.0-h);
+}
+
 float scene(vec3 p) {
     vec4 n = noised(p * 2.);
 
-    // distance to sphere 1
-    float sd = distance(p, vec3(0., 0., 0)) - 1.;
-    sd += n.x * 0.1;
+    vec3 co = (viewMatrix * vec4(p, 1.)).xyz;
+    vec3 cp = (projectionMatrix * vec4(co, 0.)).xyz;
+    cp *= 0.06;
 
-    //return sd;
+    vec4 paint = texture(uPaint, cp.xy * .5 + .5);
+    float maxDepth = 2. * (length(paint.w) * .5 + .5);
+    vec2 p2d = vec2(1. - paint.r, (co.z + length(uCamPos) + maxDepth * .5));
+    //float sc = sdCircle(p2d.xy, .5);
+    float sc = sdBox(p2d.xy, vec2(0.2, maxDepth)) - .2;
+
+    // distance to sphere 1
+    float sd = distance(p, vec3(0., 0., 0)) - 1.5;
+    //sd += n.x * 0.1;
+
+    return opSmoothSubtraction(sc, sd, 1.);
 
     float td = sdTorus(p, vec2(1., .4));
     td += n.x * 0.1;
@@ -207,7 +250,7 @@ float scene(vec3 p) {
     float bd = sdRoundBox(p, vec3(1.), 0.2);
     bd += n.x * 0.1;
 
-    return bd;
+    //return bd;
 }
 
 float findSurfaceIntersectionDist(vec3 ro, vec3 rd)
@@ -275,13 +318,24 @@ vec3 normal(vec3 p) // from https://iquilezles.org/articles/normalsSDF/
 
 vec3 calcNormal( in vec3 p ) // for function f(p)
 {
-    float h = 0.00001; // replace by an appropriate value
+    float h = 0.1; // replace by an appropriate value
     vec2 k = vec2(1.,-1.);
     return normalize(   k.xyy * scene( p + k.xyy*h ) +
                         k.yyx * scene( p + k.yyx*h ) +
                         k.yxy * scene( p + k.yxy*h ) +
                         k.xxx * scene( p + k.xxx*h ) );
 }
+
+//vec3 calcNormal( in vec3 pos )
+//{
+//    vec2 e = vec2(1.0,-1.0)*0.5773;
+//    const float eps = 0.01;
+//    return normalize( e.xyy*scene( pos + e.xyy*eps ) +
+//                        e.yyx*scene( pos + e.yyx*eps ) +
+//                        e.yxy*scene( pos + e.yxy*eps ) +
+//                        e.xxx*scene( pos + e.xxx*eps ) );
+//}
+
 
 vec4 fbmD( in vec3 x, in float H )
 {
@@ -315,6 +369,10 @@ void main(){
 
     vec3 backgroundColor = vec3(0.9, 0.93, 1.) * .01;
 
+//    vec4 paint = texture(uPaint, vUv);
+//    outColor = vec4(vec3(paint.r), 1.);
+//    return;
+
     // Get UV from vertex shader
     vec2 uv = vUv.xy;
 
@@ -337,49 +395,15 @@ void main(){
     vec3 normal = calcNormal(surfaceEntryPoint);
 
     if (surfaceEntryDist >= maxDis) { // if ray doesn't hit anything
-        color = envColor.rgb;
+        color = vec3(0.);
     } else {
         // if ray hits something
-
-        // ray march the volume
-        ro = surfaceEntryPoint - normal * eps; // offset the ray origin to be inside the object
-        float surfaceExitDist = getSurfaceExitIntersectionDist(ro, rd);
-
-        // transmittance params
-        vec3 baseColor = vec3(.5);
-        float maxDist = 0.5;
-        vec3 tc = vec3(0.1, 0.12, 0.2);
-        vec3 sigma = vec3(log(tc.r), log(tc.g), log(tc.b)) / maxDist;
-
-        // accumulate scattered light
-        int accSteps = 6;
-        float accStepSize = surfaceExitDist / float(accSteps);
-        ro = surfaceEntryPoint;
-        vec3 p = ro;
-        vec3 scatteredLight = vec3(0.);
-        float stepDist = 0.;
-        for(int i = 0; i < accSteps; i++) {
-            p += accStepSize * rd;
-
-            stepDist += accStepSize;
-
-            vec3 lDir = normalize(L - p);
-            float ld = getSurfaceExitIntersectionDist(p, lDir);
-
-            float phase = HenyeyGreenstein(.3, dot(lDir, rd));
-            scatteredLight += (exp(ld * sigma) * (lightColor) * phase * 2.) * exp(stepDist * sigma * 1.1);
-        }
-
-        vec3 transmittedColor = baseColor + scatteredLight * 3.;
-
-        if (uRenderStage == 0) {
-            outColor = vec4(transmittedColor * .1, 1.);
-            return;
-        }
-
         // pertube normals
         vec4 n1 = fbmD( 8. * surfaceEntryPoint, .5 );
-        vec3 N = normal + n1.yzw * .1;
+        vec3 N = normal; // + n1.yzw * .1;
+
+        outColor = vec4(N, 1.);
+        return;
 
         // Calculate Diffuse model
         float NdotL = clamp(dot(N, L), 0., 1.);
@@ -390,38 +414,7 @@ void main(){
         float spec = pow(NdotH, shininess) * specIntensity;
         float ambient = ambientIntensity;
 
-        float wrap = 10.;
-        float wrap_diffuse = max(0., (dot(L, normal + n1.yzw * .01) + wrap) / (1. + wrap));
-
-        vec3 reflectedColor = vec3(1.) * diff;
-
-
-        // TODO generalize glint effect
-
-        float uvSpark = snoise(surfaceEntryPoint * 40. + uTime * 0.0001);
-        uvSpark = smoothstep(0.4, 1., uvSpark);
-        float viewportSpark = snoise((vec2(gl_FragCoord.xy) / uResolution) * 100.);
-        viewportSpark = smoothstep(0.5, 1., viewportSpark);
-
-        float glintAttenuation = NdotL * .7 + .3;
-        float glints = (uvSpark * viewportSpark) * glintAttenuation;
-        glints = min(400., pow(glints * 5., 7.));
-
-        float uvSpark2 = snoise(surfaceEntryPoint * 50.);
-        uvSpark2 = smoothstep(0.3, 1., uvSpark2);
-        float viewportSpark2 = snoise((vec2(gl_FragCoord.xy) / uResolution) * 70.);
-        viewportSpark2 = smoothstep(0.4, 1., viewportSpark2);
-        float glints2 = (uvSpark2 * viewportSpark2) * glintAttenuation * .5;
-
-        float uvSpark3 = snoise(V + surfaceEntryPoint * 40.);
-        uvSpark3 = smoothstep(0.2, 1., uvSpark3);
-        float viewportSpark3 = snoise((vec2(gl_FragCoord.xy) / uResolution) * 30.);
-        viewportSpark3 = smoothstep(0.3, 1., viewportSpark3);
-        float glints3 = (uvSpark3 * viewportSpark3) * glintAttenuation * .1;
-
-        reflectedColor += (glints + glints2 + glints3);
-
-        color = transmittedColor + reflectedColor;
+        color = vec3(diff + ambientIntensity);
     }
 
     outColor = vec4(color, 1.);

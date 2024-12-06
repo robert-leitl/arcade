@@ -20,7 +20,7 @@ void main(){
                 exp(-length(rotToCenter*vec2(1.0,8.0))*37.5)*352.+
                 exp(-length(rotToCenter*vec2(1.0,20.0))*75.0)*700.+
                 exp(-length(rotToCenter*vec2(20.0,1.0))*75.0)*700.;
-    outColor = vec4(res, res, 0., 0.);
+    outColor = vec4(res, res, 0., 0.) * .5;
     return;
 
     vec2 st = fract(vUv + .5) * 2. - 1.;

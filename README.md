@@ -1,6 +1,13 @@
 # FFT Convolution Bloom
 
+## ToDos
+
+- Make paint SDF resolution independent
+- Correct grid aspect ratio
+- Correct flare intensity
+- Slow down destructure animation
+- Add post effects
+
 ## Credits
 
 - Ricky Reusser: https://github.com/rreusser/glsl-fft
-- Environment HDR Maps: https://polyhaven.com/a/snowy_forest_path_02, https://polyhaven.com/a/kloppenheim_07_puresky

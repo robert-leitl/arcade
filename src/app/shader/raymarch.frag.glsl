@@ -501,7 +501,7 @@ void main(){
 
         // Calculate Diffuse model
         float NdotL = clamp(dot(N, L), 0., 1.);
-        float diff = max(NdotL, 0.0) * .05;
+        float diff = max(NdotL, 0.0) * .2;
 
         vec4 refraction = getRefraction(rd, N, iorAir, iorGlass);
         vec2 fresnel = getDialectricFresenlFactors(rd, N, refraction.xyz, iorAir, iorGlass, 1.);
@@ -526,7 +526,7 @@ void main(){
         vec2 refractionOffset = refraction.xy * .8;
         vec3 transmittedColor = grid(vUv + refractionOffset) * transmittance;
 
-        color = reflectedColor + transmittedColor + diff;
+        color = reflectedColor + transmittedColor + diff * vec3(1., 0., 1.);
     }
 
     outColor = vec4(color, 1.);

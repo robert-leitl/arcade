@@ -14,11 +14,13 @@ in vec2 vUv;
 layout(location = 0) out vec4 outColor;
 
 #include <common>
+#define ENVMAP_TYPE_CUBE_UV
+#include <cube_uv_reflection_fragment>
 
 float eps = 0.0001;
 float maxDis = 50.;
 int maxSteps = 50;
-vec3 L = vec3(10., 3., 3.) * .1;
+vec3 L = vec3(0., 2., 0.);
 vec3 lightColor = vec3(1.);
 float diffIntensity = 0.5;
 float specIntensity = .1;
@@ -210,6 +212,12 @@ float sdBox( vec2 p, vec2 b )
 //    return min(a,b) - h*h*k*(1.0/4.0);
 //}
 
+float sdPlane( vec3 p, vec3 n, float h )
+{
+    // n must be normalized
+    return dot(p,n) + h;
+}
+
 float smax( float a, float b, float k )
 {
     k *= 1.4;
@@ -225,6 +233,8 @@ float opSmoothSubtraction( float d1, float d2, float k )
 
 float scene(vec3 p) {
     vec4 n = noised(p * vec3(13., 13., 1.));
+
+    float dp = sdPlane(p, vec3(0., 0., 1.), 4.);
 
     vec3 co = (viewMatrix * vec4(p, 1.)).xyz;
     vec3 cp = (projectionMatrix * vec4(co, 0.)).xyz;
@@ -275,6 +285,28 @@ float findSurfaceIntersectionDist(vec3 ro, vec3 rd)
     }
 
     return d; // finally, return scene distance
+}
+
+
+vec3 findBackdropIntersection(vec3 ro, vec3 rd)
+{
+    float d = 0.; // total distance travelled
+    float cd; // current scene distance
+    vec3 p; // current position of ray
+
+    for (int i = 0; i < maxSteps; ++i) {
+        p = ro + d * rd;
+
+        cd = sdPlane(p, vec3(0., 0., 1.), 5.);
+
+        // if we have hit anything or our distance is too big, break loop
+        if (cd < eps || d >= maxDis) break;
+
+        // otherwise, add new scene distance to total distance
+        d += cd ;
+    }
+
+    return ro + rd * d;
 }
 
 float getSurfaceExitIntersectionDist(
@@ -370,8 +402,69 @@ vec3 getTransmittance(float dist, vec3 sigma) {
     return tr;
 }
 
+vec4 refraction(vec3 incident, vec3 normal, float ni_nt) {
+    float ni_nt_sqr = ni_nt * ni_nt;
+    float IdotN = dot( -incident, normal );
+    float cosSqr = 1.0 - ni_nt_sqr*(1.0 - IdotN*IdotN);
+    vec4 refraction = ( cosSqr <= 0.0 ?
+        vec4( normalize(reflect( incident, normal )), -1.0 ) :
+        vec4(refract(incident, normal, ni_nt), 1.)
+    );
+    return refraction;
+}
+
+vec4 getRefraction(vec3 viewDir, vec3 normal, float n1, float n2) {
+    return refraction(viewDir, normal, n1 / n2);
+}
+
+vec4 getEnviornmentReflection(vec3 viewDir, vec3 normal) {
+    vec3 R = normalize( reflect( viewDir, normal ) );
+    return textureCubeUV(uEnvMapTexture, R, 0.);
+}
+
+vec2 getDialectricFresenlFactors(vec3 viewDir, vec3 normal, vec3 transmissionDir, float n1, float n2, float specularF90) {
+    float dotVN;
+
+    // check for internal reflection
+    if (n1 > n2) {
+        dotVN = dot(-transmissionDir, -normal);
+    } else {
+        dotVN = dot(-viewDir, normal);
+    }
+
+    float f0 = pow2((n2 - n1) / (n2 + n1));
+    float f90 = specularF90;
+    float fresnel = F_Schlick(f0, f90, max(0., dotVN));
+
+    // art direction
+    fresnel = max(0.001, fresnel * .8);
+
+    return vec2(fresnel, (1. - fresnel) * pow2(n2 / n1));
+}
+
+
+vec3 grid(vec2 uv) {
+    vec2 st = fract(uv * 10.);
+    float softness = 0.02;
+    float lineThickness = 0.01;
+    vec2 d1 =
+        smoothstep(
+            vec2(0.5 - (lineThickness * .5 + softness)),
+            vec2(0.5 - (lineThickness * .5)),
+            st) *
+        smoothstep(
+            vec2(0.5 - (lineThickness * .5 + softness)),
+            vec2(0.5 - (lineThickness * .5)),
+            1. - st);
+    return vec3(max(d1.x, d1.y));
+}
+
+
 void main(){
     vec3 color = vec3(0.);
+
+    float iorAir = 1.;
+    float iorGlass = 1.45;
 
     vec3 backgroundColor = vec3(0.9, 0.93, 1.) * .01;
 
@@ -402,31 +495,38 @@ void main(){
     vec3 normal = calcNormal(surfaceEntryPoint);
 
     if (surfaceEntryDist >= maxDis) { // if ray doesn't hit anything
-        color = vec3(0.);
+        color = grid(vUv);
     } else {
-        // if ray hits something
-        // pertube normals
-        vec4 n1 = fbmD( 8. * surfaceEntryPoint, .5 );
-        vec3 N = normal; // + n1.yzw * .1;
-
-//        outColor = vec4(N, 1.);
-//        return;
-
-        // ray march the volume
-        ro = surfaceEntryPoint - normal * eps; // offset the ray origin to be inside the object
-        float surfaceExitDist = getSurfaceExitIntersectionDist(ro, rd);
-
+        vec3 N = normal;
 
         // Calculate Diffuse model
         float NdotL = clamp(dot(N, L), 0., 1.);
-        vec3 V = -rd;
-        vec3 H = normalize(normalize(L) + V);
-        float NdotH = clamp(dot(N, H), 0., 1.);
-        float diff = max(NdotL, 0.0) * diffIntensity;
-        float spec = pow(NdotH, shininess) * specIntensity;
-        float ambient = ambientIntensity;
+        float diff = max(NdotL, 0.0) * .05;
 
-        color = vec3(diff + ambientIntensity + surfaceExitDist * .0);
+        vec4 refraction = getRefraction(rd, N, iorAir, iorGlass);
+        vec2 fresnel = getDialectricFresenlFactors(rd, N, refraction.xyz, iorAir, iorGlass, 1.);
+        vec3 reflectedColor = getEnviornmentReflection(rd, N).rgb * fresnel.x;
+        vec3 transmittance = vec3(1.) * fresnel.y;
+
+        // ray march the volume
+        rd = refraction.xyz;
+        ro = surfaceEntryPoint - N * eps; // offset the ray origin to be inside the object
+        float surfaceExitDist = getSurfaceExitIntersectionDist(ro, rd);
+        vec3 surfaceExitPoint = ro + surfaceExitDist * rd;
+
+        // Get normal of hit point
+        vec3 exitNormal = calcNormal(surfaceExitPoint);
+
+        refraction = getRefraction(rd, -exitNormal, iorGlass, iorAir);
+        fresnel = getDialectricFresenlFactors(rd, exitNormal, refraction.xyz, iorGlass, iorAir, 1.);
+        transmittance *= clamp(exp(-surfaceExitDist * .3), 0., 1.);
+        reflectedColor += getEnviornmentReflection(rd, -exitNormal).rgb * .2 * fresnel.x * transmittance;
+        transmittance *= fresnel.y;
+
+        vec2 refractionOffset = refraction.xy * .8;
+        vec3 transmittedColor = grid(vUv + refractionOffset) * transmittance;
+
+        color = reflectedColor + transmittedColor + diff;
     }
 
     outColor = vec4(color, 1.);

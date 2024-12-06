@@ -6,7 +6,7 @@ in vec2 vUv;
 layout(location = 0) out vec4 outColor;
 
 void main(){
-    float scale = 2.5;
+    float scale = 1.;
 
     vec2 toCenter=(fract(vUv+0.5)-0.5) * uAspect * scale;
     vec2 rotToCenter=mat2(0.7071067811865476,-0.7071067811865476,0.7071067811865476,0.7071067811865476)*toCenter;

@@ -59,32 +59,22 @@ vec2 map(vec2 value, vec2 inMin, vec2 inMax, vec2 outMin, vec2 outMax) {
 
 void main() {
     vec4 sceneColor = texture(uScene, vUv);
-    vec4 sceneVolumeColor = texture(uSceneVolume, vUv);
 
     vec2 bloomUv = map(vUv, vec2(0.), vec2(1.), uBloomViewport.xy, uBloomViewport.zw);
 
     vec4 bloomColor = texture(uBloom, bloomUv);
 
-//    outColor = vec4(texture(uBloom, vUv).rgb * .1, 1.);
-//    return;
-
     vec4 color = sceneColor;
 
-//    vec4 fft = texture(uBloom, vUv); //fract(vUv + .5));
-//    outColor = vec4(abs(fft.x) * 100.,0., abs(fft.z) * 100., 1.);
-//    outColor = vec4(fft.rgb * .1, 1.);
-//    return;
+    bloomColor.rgb = bloomColor.rgb * uBloomAmount;
 
+    color.rgb += bloomColor.rgb * uBloomAmount * .005;
 
-    //bloomColor.rgb = bloomColor.rgb * uBloomAmount;
+    color = vec4((NeutralToneMapping(color.rgb)), 1.);
 
-    //color.rgb += bloomColor.rgb * uBloomAmount * .005;
+    color = fromLinear(color);
 
-    //color = vec4((NeutralToneMapping(color.rgb)), 1.);
-
-    //color = fromLinear(color);
-
-    //color.rgb = dithering(color.rgb);
+    color.rgb = dithering(color.rgb);
 
     outColor = color;
 }

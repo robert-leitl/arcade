@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import {
     ClampToEdgeWrapping,
-    Color, DirectionalLight, FloatType, GLSL3, HalfFloatType,
+    Color, CubeUVReflectionMapping, DirectionalLight, FloatType, GLSL3, HalfFloatType,
     IcosahedronGeometry, LinearFilter, LoadingManager,
     Mesh, MeshPhysicalMaterial,
     MeshStandardMaterial, NearestFilter, NoToneMapping, PointLight, RawShaderMaterial,
@@ -20,6 +20,7 @@ import raymarchFrag from './shader/raymarch.frag.glsl';
 import {OrbitControls, RGBELoader} from 'three/addons';
 import {Blit} from '../libs/blit.js';
 import {Paint} from './paint.js';
+import {Env} from './env.js';
 
 // the target duration of one frame in milliseconds
 const TARGET_FRAME_DURATION_MS = 16;
@@ -70,7 +71,7 @@ const bloomUvViewport = new Vector4();
 const volumeRenderScale = 0.5;
 let volumeRenderSize;
 
-let paint;
+let paint, env;
 
 let flareTex, blueNoiseTex, envMapTex;
 
@@ -114,10 +115,12 @@ function setupScene(canvas) {
 
     paint = new Paint(renderer, camera, viewportSize);
 
+    env = new Env(renderer);
+
     raycaster = new Raycaster();
 
-    controls = new OrbitControls(camera, canvas);
-    controls.enableDamping = true;
+    // controls = new OrbitControls(camera, canvas);
+    // controls.enableDamping = true;
 
     mesh1 = new Mesh(
         new IcosahedronGeometry(0.4, 1),
@@ -148,6 +151,12 @@ function setupScene(canvas) {
         glslVersion: GLSL3,
         toneMapped: false
     });
+
+    const envMap = env.texture;
+    const envMapCubeUVHeight = ( !! envMap ) && ( envMap.mapping === CubeUVReflectionMapping ) ? envMap.image.height : null;
+    const maxMip = Math.log2( envMapCubeUVHeight ) - 2;
+    const texelHeight = 1.0 / envMapCubeUVHeight;
+    const texelWidth = 1.0 / ( 3 * Math.max( Math.pow( 2, maxMip ), 7 * 16 ) );
 
     let h = viewportSize.y / Math.max(viewportSize.x, viewportSize.y);
     const aspect = new Vector2(viewportSize.x / viewportSize.y * h, h)
@@ -200,8 +209,13 @@ function setupScene(canvas) {
             uTime: { value: 0 },
             uBlueNoiseTexture: { value: blueNoiseTex },
             uRenderStage: { value: 0 },
-            uEnvMapTexture: { value: envMapTex },
+            uEnvMapTexture: { value: env.texture },
             uPaint: { value: paint.texture },
+        },
+        defines: {
+            'CUBEUV_TEXEL_WIDTH': texelWidth,
+            'CUBEUV_TEXEL_HEIGHT': texelHeight,
+            'CUBEUV_MAX_MIP': `${maxMip}.0`,
         },
         vertexShader: QuadGeometry.vertexShader,
         fragmentShader: raymarchFrag,
@@ -323,7 +337,7 @@ function resize() {
 }
 
 function animate() {
-    if (controls) controls.update();
+    //if (controls) controls.update();
 
     //l1.position.set(Math.cos(time * 0.0005), Math.sin(time * 0.0005), 0);
 

@@ -92,7 +92,7 @@ void main() {
     paint += offsetInputValue.z;
     paint = clamp(paint, 0., 1.);
     // dissipate the paint over time
-    paint *= 0.96;
+    paint *= 0.97;
 
 
     float speed = (length(vel) + offsetInputValue.w) * .5;

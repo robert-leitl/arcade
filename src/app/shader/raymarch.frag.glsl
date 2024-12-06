@@ -231,15 +231,15 @@ float scene(vec3 p) {
     cp *= 0.15;
 
     vec4 paint = texture(uPaint, cp.xy * .5 + .5);
-    float maxDepth = 2. * (length(paint.w) * .5 + .5);
-    vec2 p2d = vec2(1. - sin(paint.r * 9.), (co.z + length(uCamPos) + maxDepth * .5));
-    //vec2 p2d = vec2(1. - paint.r, (co.z + length(uCamPos) + maxDepth * .5));
+    float maxDepth = 2. * paint.w;
+    //vec2 p2d = vec2(1. - sin(paint.z * 9.), (co.z + length(uCamPos) + maxDepth * .5));
+    vec2 p2d = vec2(1. - paint.z, (co.z + length(uCamPos) + maxDepth * .5));
     //float sc = sdCircle(p2d.xy, .5);
-    float sc = sdBox(p2d.xy, vec2(0.15, maxDepth)) - .1;
+    float sc = sdBox(p2d.xy, vec2(0.65 * paint.w, maxDepth)) - .1;
     //sc += n.x * .7 * paint.r;
 
     // distance to sphere 1
-    p.xy -= paint.yz * .1 * paint.w;
+    p.xy -= paint.xy * .7;
     float sd = distance(p, vec3(0., 0., 0)) - 1.5;
     //sd += n.x * 0.1;
 
@@ -324,7 +324,7 @@ vec3 normal(vec3 p) // from https://iquilezles.org/articles/normalsSDF/
 
 vec3 calcNormal( in vec3 p ) // for function f(p)
 {
-    float h = 0.1; // replace by an appropriate value
+    float h = 0.05; // replace by an appropriate value
     vec2 k = vec2(1.,-1.);
     return normalize(   k.xyy * scene( p + k.xyy*h ) +
                         k.yyx * scene( p + k.yyx*h ) +
@@ -375,9 +375,10 @@ void main(){
 
     vec3 backgroundColor = vec3(0.9, 0.93, 1.) * .01;
 
-//    vec4 paint = texture(uPaint, vUv);
-//    outColor = vec4(vec3(paint.r), 1.);
-//    return;
+    vec4 paint = texture(uPaint, vUv);
+    outColor = vec4(vec3(paint.z), 1.);
+    //outColor = vec4(paint.xy * .5 + .5, 0., 1.);
+    //return;
 
     // Get UV from vertex shader
     vec2 uv = vUv.xy;
@@ -425,7 +426,7 @@ void main(){
         float spec = pow(NdotH, shininess) * specIntensity;
         float ambient = ambientIntensity;
 
-        color = vec3(diff + ambientIntensity + surfaceExitDist * .1);
+        color = vec3(diff + ambientIntensity + surfaceExitDist * .0);
     }
 
     outColor = vec4(color, 1.);

@@ -23,6 +23,8 @@ vec2 sdSegment( in vec2 p, in vec2 a, in vec2 b )
 }
 
 void main() {
+    vec2 resolution = vec2(textureSize(uPrevPaint, 0));
+
     vec2 st = (vUv * 2. - 1.) * uAspect;
     st = st * .5 + .5;
     vec4 prevPaint = texture(uPrevPaint, vUv);
@@ -59,25 +61,45 @@ void main() {
     // mask the velocity
     vel *= velocityMask;
     // combine the new velocity with a bit of the current samples velocity
-    vel = (prevPaint.yz * 1. + vel * 1.);
+    vel = (prevPaint.xy + vel) * .5;
+
+    // calculate the general flow field velocity for this sample (center force)
+    vec2 flowVel = (st * 2. - 1.);
+    flowVel = normalize(flowVel) * min(0.25, max(0., (length(flowVel))));
+
+    // add a little bit of force from the current pointer position
+    vec2 pointerOffsetVel = uPointerInfo.position - vUv;
+    pointerOffsetVel = normalize(pointerOffsetVel) * (1. - smoothstep(0., 1., length(pointerOffsetVel)));
+    pointerOffsetVel *= 0.1;
+    pointerOffsetVel += flowVel * .5;
+
+    // find the input value which was moved to this samples location
+    float velOffsetStrength = .02;
+    vec2 velOffset = (vUv - (vel + pointerOffsetVel) * velOffsetStrength);
+    vec4 offsetInputValue = texture(uPrevPaint, velOffset);
+
+
+
+    // move velocity
+    vel = (offsetInputValue.xy * 1.5 + vel) / 2.;
     // dissipate the velocity over time
-    vel *= 0.94;
+    vel *= 0.95;
 
     // the strength according to the velocity
     paint = min(1., paint * strength * 200.);
 
     // combine with the previous paint
-    paint += prevPaint.x;
+    paint += offsetInputValue.z;
     paint = clamp(paint, 0., 1.);
     // dissipate the paint over time
-    paint *= 0.935;
+    paint *= 0.96;
 
-    data.r = paint;
-    data.yz = vel;
-    data.w = (length(vel) + prevPaint.w) * .5;
-    data.w *= .95;
 
-    data.a = 1.;
+    float speed = (length(vel) + offsetInputValue.w) * .5;
+    speed *= .98;
+
+
+    data = vec4(vel, paint, speed);
 
     outData = data;
 }

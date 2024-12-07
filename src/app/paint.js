@@ -77,6 +77,9 @@ export class Paint {
 
         const aspect = this.renderSize.clone().multiplyScalar(1 / Math.max(this.renderSize.x, this.renderSize.y));
         this.paintMaterial.uniforms.uAspect.value = aspect.clone();
+
+        // throttle the pointer velocity on smaller devices
+        this.pointerVelocityAttenuation = Math.min(1, (Math.max(this.renderSize.x, this.renderSize.y) / 1400));
     }
 
     animate(dt) {
@@ -86,8 +89,9 @@ export class Paint {
             (this.pointerInfo.position.x - this.pointerInfo.previousPosition.x) / dt,
             (this.pointerInfo.position.y - this.pointerInfo.previousPosition.y) / dt
         );
+        //targetVelocity.multiplyScalar(this.pointerVelocityAttenuation);
         // smooth out the velocity changes a bit
-        const velDamping = this.pointerInfo.isDown ? 20 : 4;
+        const velDamping = this.pointerInfo.isDown ? 4 : 4;
         this.pointerInfo.velocity.set(
             this.pointerInfo.velocity.x + (targetVelocity.x - this.pointerInfo.velocity.x) / velDamping,
             this.pointerInfo.velocity.y + (targetVelocity.y - this.pointerInfo.velocity.y) / velDamping
@@ -141,5 +145,6 @@ export class Paint {
 
     onPointerUp(e) {
         this.pointerInfo.isDown = false;
+        this.hasPointerInfo = false;
     }
 }

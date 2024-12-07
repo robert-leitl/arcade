@@ -233,19 +233,27 @@ float opSmoothSubtraction( float d1, float d2, float k )
 
 float scene(vec3 p) {
     vec4 n = noised(p * vec3(13., 13., 1.));
-
-    float dp = sdPlane(p, vec3(0., 0., 1.), 4.);
+//
+//    float aspect = uResolution.x / max(uResolution.x, uResolution.y);
+//    float near = projectionMatrix[3][2] / (projectionMatrix[2][2] - 1.);
+//    float far = projectionMatrix[3][2] / (projectionMatrix[2][2] + 1.);
+//    vec3 worldEdgePoint = (uCamToWorldMat * uCamInvProjMat * vec4(1., 1., 0., 1)).xyz;
+//    float paintScaleFactor = (uCamPos.z * (worldEdgePoint.x / near));
+//
+//    float dp = sdPlane(p, vec3(0., 0., 1.), 4.);
 
     vec3 co = (viewMatrix * vec4(p, 1.)).xyz;
     vec3 cp = (projectionMatrix * vec4(co, 0.)).xyz;
-    cp *= 0.15;
+    cp *= 1. / (length(uCamPos) + 1.5);
 
     vec4 paint = texture(uPaint, cp.xy * .5 + .5);
     float maxDepth = 2. * paint.w;
+
     //vec2 p2d = vec2(1. - sin(paint.z * 9.), (co.z + length(uCamPos) + maxDepth * .5));
     vec2 p2d = vec2(1. - paint.z, (co.z + length(uCamPos) + maxDepth * .5));
     //float sc = sdCircle(p2d.xy, .5);
-    float sc = sdBox(p2d.xy, vec2(0.65 * paint.w, maxDepth)) - .1;
+    float thickness = 0.65;
+    float sc = sdBox(p2d.xy, vec2(thickness * paint.w, maxDepth)) - (thickness * .2);
     //sc += n.x * .7 * paint.r;
 
     // distance to sphere 1
@@ -470,7 +478,7 @@ void main(){
 
     vec4 paint = texture(uPaint, vUv);
     outColor = vec4(vec3(paint.z), 1.);
-    //outColor = vec4(paint.xy * .5 + .5, 0., 1.);
+    outColor = vec4(paint.xy * .5 + .5, 0., 1.);
     //return;
 
     // Get UV from vertex shader

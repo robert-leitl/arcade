@@ -261,6 +261,8 @@ function setupScene(canvas) {
 
     renderer.setAnimationLoop((t) => run(t));
 
+    fitSphereAtOriginToViewport(1.8, camera, 0., 0.5, 0.5);
+
     _isInitialized = true;
 }
 
@@ -304,12 +306,27 @@ function run(t = 0) {
     render();
 }
 
+function fitSphereAtOriginToViewport(radius, camera, sizePaddingFactor = 0, nearPlanePaddingFactor = 0, farPlanePaddingFactor = 0) {
+    const r = radius * (1 + sizePaddingFactor);
+    const fov = Math.PI * camera.fov / 360;
+    if (camera.aspect >= 1) {
+        camera.position.z = r / Math.sin(fov);
+    } else {
+        camera.position.z = r / (camera.aspect * Math.sin(fov));
+    }
+    camera.near = (camera.position.z - r) - r * nearPlanePaddingFactor;
+    camera.far = (camera.position.z + r)  + r * farPlanePaddingFactor;
+}
+
 function resize() {
     if (!_isInitialized) return;
 
     if (resizeRendererToDisplaySize(renderer)) {
+
         renderer.getSize(viewportSize);
         camera.aspect = viewportSize.x / viewportSize.y;
+
+        fitSphereAtOriginToViewport(1.8, camera, 0., 0.5, 0.5);
         camera.updateProjectionMatrix();
 
         rtScene.setSize(viewportSize.x, viewportSize.y);

@@ -24,6 +24,7 @@ vec2 sdSegment( in vec2 p, in vec2 a, in vec2 b )
 
 void main() {
     vec2 resolution = vec2(textureSize(uPrevPaint, 0));
+    float deviceSizeFactor = 3. - clamp((max(resolution.x, resolution.y) / 800.), 0., 3.);
 
     vec2 st = (vUv * 2. - 1.) * uAspect;
     st = st * .5 + .5;
@@ -39,7 +40,7 @@ void main() {
     float dist = max(0., sdf.x);
 
     // calculate the radius for the new and previous point
-    float radiusScale = 1.;
+    float radiusScale = 1.5;
     float strength = length(uPointerInfo.velocity);
     float newRadius = strength * radiusScale;
     float prevRadius = length(uPointerInfo.previousVelocity) * radiusScale;
@@ -49,8 +50,8 @@ void main() {
     radius = clamp(radius, 0.0, 1.);
 
     // get a smooth paint from the distance to the segment
-    float smoothness = .1;
-    float paint = 1. - smoothstep(radius, radius + smoothness, dist);
+    float smoothness = .07 * deviceSizeFactor;
+    float paint = 1. - smoothstep(radius, radius + smoothness, dist + smoothness * .5);
 
     // the velocity has more influence than the actual paint
     float velocityMaskRadius = radius * 4.;
@@ -95,7 +96,7 @@ void main() {
     paint *= 0.97;
 
 
-    float speed = (length(vel) + offsetInputValue.w) * .5;
+    float speed = (length(vel) * 2. + offsetInputValue.w) * .5;
     speed *= .98;
 
 

@@ -231,47 +231,79 @@ float opSmoothSubtraction( float d1, float d2, float k )
     return mix( d2, -d1, h ) + k*h*(1.0-h);
 }
 
+float mod289(float x){return x - floor(x * (1.0 / 289.0)) * 289.0;}
+vec4 mod289(vec4 x){return x - floor(x * (1.0 / 289.0)) * 289.0;}
+vec4 perm(vec4 x){return mod289(((x * 34.0) + 1.0) * x);}
+
+float noise(vec3 p){
+    vec3 a = floor(p);
+    vec3 d = p - a;
+    d = d * d * (3.0 - 2.0 * d);
+
+    vec4 b = a.xxyy + vec4(0.0, 1.0, 0.0, 1.0);
+    vec4 k1 = perm(b.xyxy);
+    vec4 k2 = perm(k1.xyxy + b.zzww);
+
+    vec4 c = k2 + a.zzzz;
+    vec4 k3 = perm(c);
+    vec4 k4 = perm(c + 1.0);
+
+    vec4 o1 = fract(k3 * (1.0 / 41.0));
+    vec4 o2 = fract(k4 * (1.0 / 41.0));
+
+    vec4 o3 = o2 * d.z + o1 * (1.0 - d.z);
+    vec2 o4 = o3.yw * d.x + o3.xz * (1.0 - d.x);
+
+    return o4.y * d.y + o4.x * (1.0 - d.y);
+}
+
+float rippleDisplacement(
+    in vec3 pos,
+    in float time
+) {
+    vec3 p = vec3(pos);
+
+    float noise1 = noise(p * .5 + time * 0.001);
+    float noise2 = noise(p * .5 - time * 0.002);
+    float noise = sin(noise1 * 40. + cos(noise2 * 30.)) ;
+    float displacement = (noise + 2.) * -0.018;
+
+    return displacement;
+}
+
 float scene(vec3 p) {
-    vec4 n = noised(p * vec3(13., 13., 1.));
-//
-//    float aspect = uResolution.x / max(uResolution.x, uResolution.y);
-//    float near = projectionMatrix[3][2] / (projectionMatrix[2][2] - 1.);
-//    float far = projectionMatrix[3][2] / (projectionMatrix[2][2] + 1.);
-//    vec3 worldEdgePoint = (uCamToWorldMat * uCamInvProjMat * vec4(1., 1., 0., 1)).xyz;
-//    float paintScaleFactor = (uCamPos.z * (worldEdgePoint.x / near));
-//
-//    float dp = sdPlane(p, vec3(0., 0., 1.), 4.);
+    // get the view position of the world point
+    vec3 viewPos = (viewMatrix * vec4(p, 1.)).xyz;
 
-    vec3 co = (viewMatrix * vec4(p, 1.)).xyz;
-    vec3 cp = (projectionMatrix * vec4(co, 0.)).xyz;
-    cp *= 1. / (length(uCamPos) + 1.5);
+    // get the ndc position of the view point
+    vec3 ndcPos = (projectionMatrix * vec4(viewPos, 0.)).xyz;
 
-    vec4 paint = texture(uPaint, cp.xy * .5 + .5);
+    // scale the ndc position for an approximated fit of the paint texture to the viewport
+    ndcPos *= 1. / (length(uCamPos) + 1.5);
+
+    // get the paint texture for the ndc position
+    vec4 paint = texture(uPaint, ndcPos.xy * .5 + .5);
     float maxDepth = 2. * paint.w;
 
-    //vec2 p2d = vec2(1. - sin(paint.z * 9.), (co.z + length(uCamPos) + maxDepth * .5));
-    vec2 p2d = vec2(1. - paint.z, (co.z + length(uCamPos) + maxDepth * .5));
-    //float sc = sdCircle(p2d.xy, .5);
+    // move the paint 2d distance to the origin
+    vec2 p2d = vec2(1. - paint.z, (viewPos.z + length(uCamPos) + maxDepth * .5));
+
+    // use a 2d box sdf to get a 3d sdf for the paint strokes
     float thickness = 0.65;
-    float sc = sdBox(p2d.xy, vec2(thickness * paint.w, maxDepth)) - (thickness * .2);
-    //sc += n.x * .7 * paint.r;
+    float paintDist = sdBox(p2d.xy, vec2(thickness * paint.w, maxDepth)) - (thickness * .2);
 
-    // distance to sphere 1
-    p.xy -= paint.xy * .7;
-    float sd = distance(p, vec3(0., 0., 0)) - 1.5;
-    //sd += n.x * 0.1;
+    // distort sphere by paint velociyt
+    p.xy -= paint.xy * .8;
 
-    return opSmoothSubtraction(sc, sd, 1.);
+    float rNoise = rippleDisplacement(p, uTime * .05);
+    p += rNoise * .2;
 
-    float td = sdTorus(p, vec2(1., .4));
-    td += n.x * 0.1;
+    // sphere sdf
+    float radius = 1.5 + paint.w * .1;
+    float sphereDist = distance(p, vec3(0., 0., 0)) - radius;
 
-    //return td;
+    return opSmoothSubtraction(paintDist, sphereDist, 1.);
 
-    float bd = sdRoundBox(p, vec3(1.), 0.2);
-    bd += n.x * 0.1;
-
-    //return bd;
 }
 
 float findSurfaceIntersectionDist(vec3 ro, vec3 rd)
@@ -372,17 +404,6 @@ vec3 calcNormal( in vec3 p ) // for function f(p)
                         k.xxx * scene( p + k.xxx*h ) );
 }
 
-//vec3 calcNormal( in vec3 pos )
-//{
-//    vec2 e = vec2(1.0,-1.0)*0.5773;
-//    const float eps = 0.01;
-//    return normalize( e.xyy*scene( pos + e.xyy*eps ) +
-//                        e.yyx*scene( pos + e.yyx*eps ) +
-//                        e.yxy*scene( pos + e.yxy*eps ) +
-//                        e.xxx*scene( pos + e.xxx*eps ) );
-//}
-
-
 vec4 fbmD( in vec3 x, in float H )
 {
     float G = exp2(-H);
@@ -450,26 +471,35 @@ vec2 getDialectricFresenlFactors(vec3 viewDir, vec3 normal, vec3 transmissionDir
     return vec2(fresnel, (1. - fresnel) * pow2(n2 / n1));
 }
 
+float sdBox2d( vec2 p, vec2 b )
+{
+    vec2 d = abs(p)-b;
+    return length(max(d,0.0)) + min(max(d.x,d.y),0.0);
+}
 
-vec3 grid(vec2 uv) {
-    vec2 st = fract(uv * 10.);
-    float softness = 0.02;
+vec3 grid(vec2 uv, vec2 aspect, float softness) {
+    vec4 paint = texture(uPaint, uv);
+
+    uv -= paint.xy * .025;
+    uv *= aspect;
+    vec2 st = fract(uv * 10.) * 2. - 1.;
     float lineThickness = 0.01;
-    vec2 d1 =
-        smoothstep(
-            vec2(0.5 - (lineThickness * .5 + softness)),
-            vec2(0.5 - (lineThickness * .5)),
-            st) *
-        smoothstep(
-            vec2(0.5 - (lineThickness * .5 + softness)),
-            vec2(0.5 - (lineThickness * .5)),
-            1. - st);
-    return vec3(max(d1.x, d1.y));
+    float roundness = 0.05 + softness;
+
+    float b = sdBox2d(st, vec2(1. - lineThickness - roundness)) - roundness;
+    b = 1. - max(0., -b);
+
+    float glowMask = 1. - smoothstep(0.0, 1., length(vUv * 2. - 1.) * .8);
+    glowMask = glowMask * .8 + .2;
+
+    return mix(vec3(0.008, 0.01, 0.02) * glowMask, vec3(.7, 0.75, 1.7) * 1.2 * (paint.z * 4. + 1.) * (glowMask), smoothstep(1. - softness, 1., b));
 }
 
 
 void main(){
     vec3 color = vec3(0.);
+
+    vec2 aspect = uResolution / max(uResolution.x, uResolution.y);
 
     float iorAir = 1.;
     float iorGlass = 1.45;
@@ -478,7 +508,7 @@ void main(){
 
     vec4 paint = texture(uPaint, vUv);
     outColor = vec4(vec3(paint.z), 1.);
-    outColor = vec4(paint.xy * .5 + .5, 0., 1.);
+    //outColor = vec4(paint.xy * .5 + .5, 0., 1.);
     //return;
 
     // Get UV from vertex shader
@@ -503,7 +533,7 @@ void main(){
     vec3 normal = calcNormal(surfaceEntryPoint);
 
     if (surfaceEntryDist >= maxDis) { // if ray doesn't hit anything
-        color = grid(vUv);
+        color = grid(vUv, aspect, 0.02);
     } else {
         vec3 N = normal;
 
@@ -532,7 +562,7 @@ void main(){
         transmittance *= fresnel.y;
 
         vec2 refractionOffset = refraction.xy * .8;
-        vec3 transmittedColor = grid(vUv + refractionOffset) * transmittance;
+        vec3 transmittedColor = grid(vUv, aspect + refractionOffset, 0.2) * transmittance;
 
         color = reflectedColor + transmittedColor + diff * vec3(1., 0., 1.);
     }

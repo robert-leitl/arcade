@@ -60,7 +60,7 @@ let fftMaterial, finalizeColorMaterial, flareMaterial, fftConvolutionMaterial, r
 
 const flareSize = new Vector2();
 const convolutionSize = new Vector2();
-const convolutionScale = 1;
+const convolutionScale = 2;
 
 let downsampleSceneBlit;
 const bloomDownSampleSize = new Vector2();
@@ -289,8 +289,6 @@ function computeBloomSizes() {
     const bloomStrength = 1;
     const amount = (bloomStrength * 1e6) / Math.pow(powerTwoCeilingBase(viewportSize.x * viewportSize.y), 5);
     finalizeColorMaterial.uniforms.uBloomAmount.value = amount;
-    console.log(amount);
-
 
     let h = convolutionSize.y / Math.max(convolutionSize.x, convolutionSize.y);
     flareMaterial.uniforms.uAspect.value = new Vector2(convolutionSize.x / convolutionSize.y * h, h);

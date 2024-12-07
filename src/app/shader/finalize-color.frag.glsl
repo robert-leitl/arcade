@@ -64,11 +64,12 @@ void main() {
 
     vec4 bloomColor = texture(uBloom, bloomUv);
 
+
     vec4 color = sceneColor;
 
     bloomColor.rgb = bloomColor.rgb * uBloomAmount;
 
-    color.rgb += bloomColor.rgb * uBloomAmount * .005;
+    color.rgb += bloomColor.rgb * uBloomAmount * .008;
 
     color = vec4((NeutralToneMapping(color.rgb)), 1.);
 

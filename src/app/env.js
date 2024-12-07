@@ -29,14 +29,14 @@ export class Env {
 
         const p1 = new Mesh(
             new IcosahedronGeometry(.7, 12),
-            new MeshBasicMaterial({color: new Color(0xff00ff).multiplyScalar(7)})
+            new MeshBasicMaterial({color: new Color(0xff00ff).multiplyScalar(4)})
         );
         p1.position.set(0, .9, 0);
         this.scene.add(p1);
 
         const p2 = new Mesh(
             new IcosahedronGeometry(.2, 12),
-            new MeshBasicMaterial({color: new Color(0xffffff).multiplyScalar(100)})
+            new MeshBasicMaterial({color: new Color(0xffffff).multiplyScalar(30)})
         );
         p2.position.set(0, -1, -1);
         this.scene.add(p2);

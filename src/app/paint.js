@@ -83,13 +83,16 @@ export class Paint {
     }
 
     animate(dt) {
-        if (!this.hasPointerInfo) return;
+        const targetVelocity = new Vector2();
 
-        const targetVelocity = new Vector2(
-            (this.pointerInfo.position.x - this.pointerInfo.previousPosition.x) / dt,
-            (this.pointerInfo.position.y - this.pointerInfo.previousPosition.y) / dt
-        );
-        //targetVelocity.multiplyScalar(this.pointerVelocityAttenuation);
+        if (this.hasPointerInfo) {
+            targetVelocity.set(
+                (this.pointerInfo.position.x - this.pointerInfo.previousPosition.x) / dt,
+                (this.pointerInfo.position.y - this.pointerInfo.previousPosition.y) / dt
+            );
+            //targetVelocity.multiplyScalar(this.pointerVelocityAttenuation);
+        }
+
         // smooth out the velocity changes a bit
         const velDamping = this.pointerInfo.isDown ? 4 : 4;
         this.pointerInfo.velocity.set(

@@ -20,7 +20,7 @@ export class Env {
 
         // magenta area light left
         this.areaLight = new Mesh(
-            new PlaneGeometry(3, 2),
+            new PlaneGeometry(12, 1),
             new MeshBasicMaterial({color: new Color(0x20eaff).multiplyScalar(2)})
         );
         this.areaLight.position.set(1, 0, -1);
@@ -28,24 +28,24 @@ export class Env {
         this.scene.add(this.areaLight);
 
         const p1 = new Mesh(
-            new IcosahedronGeometry(.7, 12),
+            new IcosahedronGeometry(.3, 12),
             new MeshBasicMaterial({color: new Color(0xff00af).multiplyScalar(4)})
         );
-        p1.position.set(0, .9, 0);
+        p1.position.set(0, -.9, 0);
         this.scene.add(p1);
 
         const p2 = new Mesh(
-            new IcosahedronGeometry(.2, 12),
+            new IcosahedronGeometry(.1, 12),
             new MeshBasicMaterial({color: new Color(0xefeeaf).multiplyScalar(30)})
         );
-        p2.position.set(0, -1, -1);
+        p2.position.set(0, 1, -.2);
         this.scene.add(p2);
 
         const p3 = new Mesh(
             new IcosahedronGeometry(.1, 12),
-            new MeshBasicMaterial({color: new Color(0xffaafa).multiplyScalar(50)})
+            new MeshBasicMaterial({color: new Color(0xffaafa).multiplyScalar(1000)})
         );
-        p3.position.set(-1.5, 1.4, 1);
+        p3.position.set(-1.5, -1.4, 1);
         this.scene.add(p3);
 
         this.update();

@@ -69,7 +69,7 @@ const bloomDownSampleViewport = new Vector4();
 const bloomViewportPaddingPercent = 0.1;
 const bloomUvViewport = new Vector4();
 
-const sceneRenderScale = .25;
+const sceneRenderScale = .28;
 let sceneRenderSize;
 
 let paint, env;

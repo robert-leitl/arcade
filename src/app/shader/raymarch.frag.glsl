@@ -212,6 +212,20 @@ float sdPlane( vec3 p, vec3 n, float h )
     return dot(p,n) + h;
 }
 
+float sdOctahedron( vec3 p, float s )
+{
+    p = abs(p);
+    float m = p.x+p.y+p.z-s;
+    vec3 q;
+    if( 3.0*p.x < m ) q = p.xyz;
+    else if( 3.0*p.y < m ) q = p.yzx;
+    else if( 3.0*p.z < m ) q = p.zxy;
+    else return m*0.57735027;
+
+    float k = clamp(0.5*(q.z-q.y+s),0.0,s);
+    return length(vec3(q.x,q.y-s+k,q.z-k));
+}
+
 float smax( float a, float b, float k )
 {
     k *= 1.4;
@@ -265,6 +279,21 @@ float rippleDisplacement(
     return displacement;
 }
 
+mat3 rotation3dY(float angle) {
+    float s = sin(angle);
+    float c = cos(angle);
+
+    return mat3(
+    c, 0.0, -s,
+    0.0, 1.0, 0.0,
+    s, 0.0, c
+    );
+}
+
+vec3 rotateY(vec3 v, float angle) {
+    return rotation3dY(angle) * v;
+}
+
 float scene(vec3 p) {
     // get the view position of the world point
     vec3 viewPos = (viewMatrix * vec4(p, 1.)).xyz;
@@ -296,9 +325,13 @@ float scene(vec3 p) {
     float radius = 1.5 + paint.w * .1;
     float sphereDist = distance(p, vec3(0., 0., 0)) - radius;
 
+    // octahedron sdf
+    p = rotateY(p, uTime * 0.0002);
+    float octaDist = sdOctahedron(p, 1.1) - .6;
+
     float rBoxDist = sdRoundBox(p, vec3(1.), .2);
 
-    return opSmoothSubtraction(paintDist, sphereDist, 1.);
+    return opSmoothSubtraction(paintDist, octaDist, 1.);
 
 }
 
@@ -538,7 +571,7 @@ void main(){
     if (surfaceEntryDist >= maxDis) { // if ray doesn't hit anything
         color = grid(vUv, aspect, 0.02);
     } else {
-        vec3 L = vec3(0., 2., 0.);
+        vec3 L = vec3(1., 2., 0.);
         vec3 N = normal;
 
         // Calculate Diffuse model
@@ -561,7 +594,7 @@ void main(){
 
         // Calculate inner Diffuse model
         NdotL = clamp(dot(exitNormal, L), 0., 1.);
-        diff += max(NdotL, 0.0) * .05;
+        //diff += max(NdotL, 0.0) * .05;
 
         refraction = getRefraction(rd, -exitNormal, iorGlass, iorAir);
         fresnel = getDialectricFresenlFactors(rd, exitNormal, refraction.xyz, iorGlass, iorAir, 1.);

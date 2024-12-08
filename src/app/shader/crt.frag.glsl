@@ -132,7 +132,8 @@ vec4 crt(vec4 color, vec2 uv, vec2 inputResolution) {
     vec3 chroat = sat * vec3(0.0, 1.0, 1.0);
     vec3 signal = lumat * (1.0 - BLUR) + BLUR * lsignal + chroat * (1.0 - CHROMABLUR) + CHROMABLUR * csignal;
 
-    float scanl = 0.5 + 0.5 * abs(sin(PI * uv.y * inputResolution.y));
+    float scanl = 0.5 + 0.5 * abs(sin(PI * uv.y * inputResolution.y) * 2.);
+    scanl *= scanl;
 
     // decoding chroma saturation and phase
 

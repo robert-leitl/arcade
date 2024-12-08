@@ -62,7 +62,7 @@ void main() {
 
     bloomColor.rgb = bloomColor.rgb * uBloomAmount;
 
-    color.rgb += bloomColor.rgb * uBloomAmount * .04;
+    color.rgb += bloomColor.rgb * uBloomAmount * .05;
 
     color = vec4((NeutralToneMapping(color.rgb)), 1.);
 

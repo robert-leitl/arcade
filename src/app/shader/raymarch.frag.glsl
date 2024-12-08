@@ -477,18 +477,25 @@ vec3 grid(vec2 uv, vec2 aspect, float softness) {
     vec4 paint = texture(uPaint, uv);
 
     uv -= paint.xy * .025;
-    uv *= aspect;
-    vec2 st = fract(uv * 10.1) * 2. - 1.;
-    float lineThickness = 0.02;
+    //uv *= aspect;
+    vec2 st = fract(uv * 8.) * 2. - 1.;
+    float lineThickness = 0.03;
     float roundness = 0.05 + softness;
 
     float b = sdBox2d(st, vec2(1. - lineThickness - roundness)) - roundness;
     b = 1. - max(0., -b);
+    b = smoothstep(1. - softness, 1., b);
 
-    float glowMask = 1. - smoothstep(0.0, 1., length(vUv * 2. - 1.) * .8);
+    float centerDist = length(vUv * 2. - 1.);
+    float glowMask = 1. - smoothstep(0.0, 1., centerDist * .8);
     glowMask = glowMask * .8 + .2;
 
-    return mix(vec3(0.008, 0.01, 0.02) * glowMask, vec3(.7, 0.75, 1.7) * 1.2 * (paint.z * 4. + 1.) * (glowMask), smoothstep(1. - softness, 1., b));
+    float shadowDist = length((vUv * 2. - 1. + vec2(0., .3)) * aspect);
+    float shadow = smoothstep(0.2, .9, shadowDist);
+    shadow = shadow * .9 + .1;
+
+    vec3 gridColor = vec3(.7, 0.75, 1.7) * .8;
+    return mix(vec3(0.008, 0.01, 0.02) * glowMask, gridColor * (paint.z * 16. + 1.) * glowMask, b) * shadow;
 }
 
 
@@ -563,7 +570,7 @@ void main(){
         transmittance *= fresnel.y;
 
         vec2 refractionOffset = refraction.xy * .8;
-        vec3 transmittedColor = grid(vUv, aspect + refractionOffset, 0.07) * transmittance;
+        vec3 transmittedColor = grid(vUv + refractionOffset, aspect, 0.07) * transmittance;
 
         color = reflectedColor + transmittedColor + diff * vec3(.8, 0.1, 1.);
     }

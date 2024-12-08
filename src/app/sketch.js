@@ -111,7 +111,7 @@ function setupScene(canvas) {
 
     renderer = new THREE.WebGLRenderer( { canvas, antialias: true } );
     renderer.toneMapping = NoToneMapping;
-    viewportSize = new Vector2(renderer.domElement.clientWidth, renderer.domElement.clientHeight);
+    viewportSize = new Vector2(100, 100);
     sceneRenderSize = viewportSize.clone().multiplyScalar(sceneRenderScale);
     renderer.setSize(viewportSize.x, viewportSize.y, false);
 
@@ -278,6 +278,7 @@ function setupScene(canvas) {
     fitSphereAtOriginToViewport(1.8, camera, 0., 0.5, 0.5);
 
     _isInitialized = true;
+    resize();
 }
 
 function computeBloomSizes() {

@@ -27,7 +27,7 @@ vec4 fromLinear(vec4 linearRGB)
 
 #define BRIGHTNESS 1.1
 #define SATURATION 0.6
-#define BLUR 0.7
+#define BLUR 1.
 #define BLURSIZE 0.2
 #define CHROMABLUR 0.7
 #define CHROMASIZE 7.0

@@ -96,7 +96,7 @@ void main() {
     paint *= 0.97;
 
 
-    float speed = (length(vel) * 2. + offsetInputValue.w) * .5;
+    float speed = (length(vel) * 3. + offsetInputValue.w) * .5;
     speed *= .98;
 
 

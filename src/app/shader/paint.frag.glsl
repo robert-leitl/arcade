@@ -65,7 +65,7 @@ void main() {
     vel = (prevPaint.xy + vel) * .5;
 
     // calculate the general flow field velocity for this sample (center force)
-    vec2 flowVel = (st * 2. - 1.);
+    vec2 flowVel = (st * 2. - 1.) + 0.0001;
     flowVel = normalize(flowVel) * min(0.25, max(0., (length(flowVel))));
 
     // add a little bit of force from the current pointer position

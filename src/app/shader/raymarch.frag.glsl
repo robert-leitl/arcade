@@ -555,6 +555,10 @@ void main(){
         // Get normal of hit point
         vec3 exitNormal = calcNormal(surfaceExitPoint);
 
+        // Calculate inner Diffuse model
+        NdotL = clamp(dot(exitNormal, L), 0., 1.);
+        diff += max(NdotL, 0.0) * .1;
+
         refraction = getRefraction(rd, -exitNormal, iorGlass, iorAir);
         fresnel = getDialectricFresenlFactors(rd, exitNormal, refraction.xyz, iorGlass, iorAir, 1.);
         transmittance *= clamp(exp(-surfaceExitDist * .3), 0., 1.);

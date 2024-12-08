@@ -20,12 +20,6 @@ layout(location = 0) out vec4 outColor;
 float eps = 0.0001;
 float maxDis = 50.;
 int maxSteps = 50;
-vec3 L = vec3(0., 2., 0.);
-vec3 lightColor = vec3(1.);
-float diffIntensity = 0.5;
-float specIntensity = .1;
-float ambientIntensity = 0.045;
-float shininess = 10.;
 
 //	Simplex 3D Noise
 //	by Ian McEwan, Stefan Gustavson (https://github.com/stegu/webgl-noise)
@@ -302,6 +296,8 @@ float scene(vec3 p) {
     float radius = 1.5 + paint.w * .1;
     float sphereDist = distance(p, vec3(0., 0., 0)) - radius;
 
+    float rBoxDist = sdRoundBox(p, vec3(1.), .2);
+
     return opSmoothSubtraction(paintDist, sphereDist, 1.);
 
 }
@@ -482,8 +478,8 @@ vec3 grid(vec2 uv, vec2 aspect, float softness) {
 
     uv -= paint.xy * .025;
     uv *= aspect;
-    vec2 st = fract(uv * 10.) * 2. - 1.;
-    float lineThickness = 0.01;
+    vec2 st = fract(uv * 10.1) * 2. - 1.;
+    float lineThickness = 0.02;
     float roundness = 0.05 + softness;
 
     float b = sdBox2d(st, vec2(1. - lineThickness - roundness)) - roundness;
@@ -535,11 +531,12 @@ void main(){
     if (surfaceEntryDist >= maxDis) { // if ray doesn't hit anything
         color = grid(vUv, aspect, 0.02);
     } else {
+        vec3 L = vec3(0., 2., 0.);
         vec3 N = normal;
 
         // Calculate Diffuse model
         float NdotL = clamp(dot(N, L), 0., 1.);
-        float diff = max(NdotL, 0.0) * .2;
+        float diff = max(NdotL, 0.0) * .1;
 
         vec4 refraction = getRefraction(rd, N, iorAir, iorGlass);
         vec2 fresnel = getDialectricFresenlFactors(rd, N, refraction.xyz, iorAir, iorGlass, 1.);
@@ -557,7 +554,7 @@ void main(){
 
         // Calculate inner Diffuse model
         NdotL = clamp(dot(exitNormal, L), 0., 1.);
-        diff += max(NdotL, 0.0) * .1;
+        diff += max(NdotL, 0.0) * .05;
 
         refraction = getRefraction(rd, -exitNormal, iorGlass, iorAir);
         fresnel = getDialectricFresenlFactors(rd, exitNormal, refraction.xyz, iorGlass, iorAir, 1.);
@@ -566,9 +563,9 @@ void main(){
         transmittance *= fresnel.y;
 
         vec2 refractionOffset = refraction.xy * .8;
-        vec3 transmittedColor = grid(vUv, aspect + refractionOffset, 0.2) * transmittance;
+        vec3 transmittedColor = grid(vUv, aspect + refractionOffset, 0.07) * transmittance;
 
-        color = reflectedColor + transmittedColor + diff * vec3(1., 0., 1.);
+        color = reflectedColor + transmittedColor + diff * vec3(.8, 0.1, 1.);
     }
 
     outColor = vec4(color, 1.);

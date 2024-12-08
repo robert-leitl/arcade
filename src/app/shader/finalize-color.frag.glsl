@@ -10,7 +10,7 @@ in vec2 vUv;
 
 uniform float toneMappingExposure;
 
-#define DITHERING 0
+#define DITHERING 1
 
 #include <common>
 #include <dithering_pars_fragment>
@@ -44,36 +44,27 @@ vec3 NeutralToneMapping( vec3 color ) {
 
 }
 
-vec4 fromLinear(vec4 linearRGB)
-{
-    bvec3 cutoff = lessThan(linearRGB.rgb, vec3(0.0031308));
-    vec3 higher = vec3(1.055)*pow(linearRGB.rgb, vec3(1.0/2.4)) - vec3(0.055);
-    vec3 lower = linearRGB.rgb * vec3(12.92);
-
-    return vec4(mix(higher, lower, cutoff), linearRGB.a);
-}
-
 vec2 map(vec2 value, vec2 inMin, vec2 inMax, vec2 outMin, vec2 outMax) {
     return outMin + (outMax - outMin) * (value - inMin) / (inMax - inMin);
 }
 
 void main() {
     vec4 sceneColor = texture(uScene, vUv);
+    vec2 sceneResolution = vec2(textureSize(uScene, 0));
+
+    float deviceSizeFactor = 1. - clamp((max(sceneResolution.x, sceneResolution.y) / 1000.), 0., 1.);
 
     vec2 bloomUv = map(vUv, vec2(0.), vec2(1.), uBloomViewport.xy, uBloomViewport.zw);
 
     vec4 bloomColor = texture(uBloom, bloomUv);
 
-
     vec4 color = sceneColor;
 
     bloomColor.rgb = bloomColor.rgb * uBloomAmount;
 
-    color.rgb += bloomColor.rgb * uBloomAmount * .012;
+    color.rgb += bloomColor.rgb * uBloomAmount * .04;
 
     color = vec4((NeutralToneMapping(color.rgb)), 1.);
-
-    color = fromLinear(color);
 
     color.rgb = dithering(color.rgb);
 

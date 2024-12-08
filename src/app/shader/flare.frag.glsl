@@ -32,7 +32,7 @@ void main(){
         exp(-length(st * 7.5)) * 10. +
         drawflare(st * 4., 6.) * 600. +
         drawflare(st * 4., 3.) * 300.;
-    outColor = vec4(value, value, 0., 0.);
+    outColor = vec4(value, value, 0., 0.) * .8;
     return;
 
     vec2 rotToCenter=mat2(0.7071067811865476,-0.7071067811865476,0.7071067811865476,0.7071067811865476)*st;

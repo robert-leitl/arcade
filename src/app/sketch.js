@@ -17,6 +17,7 @@ import fftFrag from './shader/fft.frag.glsl';
 import flareFrag from './shader/flare.frag.glsl';
 import fftConvolutionFrag from './shader/fft-convolution.frag.glsl';
 import raymarchFrag from './shader/raymarch.frag.glsl';
+import crtFrag from './shader/crt.frag.glsl';
 import {OrbitControls, RGBELoader} from 'three/addons';
 import {Blit} from '../libs/blit.js';
 import {Paint} from './paint.js';
@@ -54,9 +55,9 @@ var _isDev,
 
 let mesh1, quadMesh, l1;
 
-let rtScene, rtVolume, rtFFT_0, rtFFT_1, rtFFT_2, rtFlare_0, rtFlare_1, rtFlare_2;
+let rtScene, rtColor, rtFFT_0, rtFFT_1, rtFFT_2, rtFlare_0, rtFlare_1, rtFlare_2;
 
-let fftMaterial, finalizeColorMaterial, flareMaterial, fftConvolutionMaterial, raymarchMaterial;
+let fftMaterial, finalizeColorMaterial, flareMaterial, fftConvolutionMaterial, raymarchMaterial, crtMaterial;
 
 const flareSize = new Vector2();
 const convolutionSize = new Vector2();
@@ -68,8 +69,8 @@ const bloomDownSampleViewport = new Vector4();
 const bloomViewportPaddingPercent = 0.1;
 const bloomUvViewport = new Vector4();
 
-const volumeRenderScale = 0.5;
-let volumeRenderSize;
+const sceneRenderScale = .25;
+let sceneRenderSize;
 
 let paint, env;
 
@@ -111,6 +112,7 @@ function setupScene(canvas) {
     renderer = new THREE.WebGLRenderer( { canvas, antialias: true } );
     renderer.toneMapping = NoToneMapping;
     viewportSize = new Vector2(renderer.domElement.clientWidth, renderer.domElement.clientHeight);
+    sceneRenderSize = viewportSize.clone().multiplyScalar(sceneRenderScale);
     renderer.setSize(viewportSize.x, viewportSize.y, false);
 
     paint = new Paint(renderer, camera, viewportSize);
@@ -205,7 +207,7 @@ function setupScene(canvas) {
             uCamPos: { value: camera.position },
             uCamToWorldMat: { value: camera.matrixWorld },
             uCamInvProjMat: { value: camera.projectionMatrixInverse },
-            uResolution: { value: viewportSize.clone() },
+            uResolution: { value: sceneRenderSize.clone() },
             uTime: { value: 0 },
             uBlueNoiseTexture: { value: blueNoiseTex },
             uRenderStage: { value: 0 },
@@ -224,16 +226,28 @@ function setupScene(canvas) {
         glslVersion: GLSL3,
         toneMapped: false
     });
+    crtMaterial = new ShaderMaterial({
+        uniforms: {
+            uColor: { value: null },
+            uTime: { value: 0 },
+            uFrame: { value: 0 },
+            uResolution: { value: viewportSize.clone() },
+        },
+        vertexShader: QuadGeometry.vertexShader,
+        fragmentShader: crtFrag,
+        depthWrite: false,
+        depthTest: false,
+        glslVersion: GLSL3
+    });
 
     quadMesh = new Mesh(
         new QuadGeometry(),
         finalizeColorMaterial
     );
 
-    rtScene = new WebGLRenderTarget(viewportSize.x, viewportSize.y, { type: HalfFloatType, samples: 1 });
 
-    volumeRenderSize = viewportSize.clone().multiplyScalar(volumeRenderScale);
-    rtVolume = new WebGLRenderTarget(volumeRenderSize.x, volumeRenderSize.y);
+    rtScene = new WebGLRenderTarget(sceneRenderSize.x, sceneRenderSize.y, { type: HalfFloatType, samples: 1 });
+    rtColor = new WebGLRenderTarget(sceneRenderSize.x, sceneRenderSize.y, { magFilter: NearestFilter, minFilter: NearestFilter });
 
     downsampleSceneBlit = new Blit(renderer);
 
@@ -287,7 +301,7 @@ function computeBloomSizes() {
     bloomUvViewport.w = bloomUvViewport.y + bloomDownSampleViewport.w / convolutionSize.y;
 
     const bloomStrength = 1;
-    const amount = (bloomStrength * 1e6) / Math.pow(powerTwoCeilingBase(viewportSize.x * viewportSize.y), 5);
+    const amount = (bloomStrength * 1e6) / Math.pow(powerTwoCeilingBase(viewportSize.x * viewportSize.y), 5.1);
     finalizeColorMaterial.uniforms.uBloomAmount.value = amount;
 
     let h = convolutionSize.y / Math.max(convolutionSize.x, convolutionSize.y);
@@ -327,7 +341,9 @@ function resize() {
         fitSphereAtOriginToViewport(1.8, camera, 0., 0.5, 0.5);
         camera.updateProjectionMatrix();
 
-        rtScene.setSize(viewportSize.x, viewportSize.y);
+        sceneRenderSize = viewportSize.clone().multiplyScalar(sceneRenderScale);
+        rtScene.setSize(sceneRenderSize.x, sceneRenderSize.y);
+        rtColor.setSize(sceneRenderSize.x, sceneRenderSize.y);
 
         computeBloomSizes();
 
@@ -340,12 +356,11 @@ function resize() {
         rtFlare_1.setSize(flareSize.x, flareSize.y);
         rtFlare_2.setSize(flareSize.x, flareSize.y);
 
-        volumeRenderSize = viewportSize.clone().multiplyScalar(volumeRenderScale);
-        rtVolume.setSize(volumeRenderSize.x, volumeRenderSize.y);
-
         fftMaterial.uniforms.uTexelSize.value = new Vector2(1 / convolutionSize.x, 1 / convolutionSize.y);
 
-        raymarchMaterial.uniforms.uResolution.value.copy(viewportSize);
+        raymarchMaterial.uniforms.uResolution.value.copy(sceneRenderSize);
+
+        crtMaterial.uniforms.uResolution.value.copy(viewportSize);
 
         paint.resize(viewportSize);
     }
@@ -357,6 +372,9 @@ function animate() {
     //l1.position.set(Math.cos(time * 0.0005), Math.sin(time * 0.0005), 0);
 
     raymarchMaterial.uniforms.uTime.value = time;
+
+    crtMaterial.uniforms.uTime.value = time;
+    crtMaterial.uniforms.uFrame.value = frames;
 
     paint.animate(deltaTimeMS);
 }
@@ -488,12 +506,17 @@ function render() {
         forward: false
     });
 
-    renderer.setRenderTarget(null);
+    renderer.setRenderTarget(rtColor);
     quadMesh.material = finalizeColorMaterial;
     finalizeColorMaterial.uniforms.uScene.value = rtScene.texture;
     finalizeColorMaterial.uniforms.uBloom.value = rtFFT_2.texture;
     finalizeColorMaterial.uniforms.uBloomViewport.value = bloomUvViewport;
-    finalizeColorMaterial.uniforms.uSceneVolume.value = rtVolume.texture;
+    finalizeColorMaterial.uniforms.uSceneVolume.value = rtColor.texture;
+    renderer.render( quadMesh, camera );
+
+    renderer.setRenderTarget(null);
+    quadMesh.material = crtMaterial;
+    crtMaterial.uniforms.uColor.value = rtColor.texture;
     renderer.render( quadMesh, camera );
 }
 

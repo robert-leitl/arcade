@@ -165,7 +165,8 @@ function setupScene(canvas) {
     flareMaterial = new ShaderMaterial({
         uniforms: {
             uAspect: {value: aspect},
-            uFlareTexture: {value: flareTex}
+            uFlareTexture: {value: flareTex},
+            uScale: {value: 1}
         },
         vertexShader: QuadGeometry.vertexShader,
         fragmentShader: flareFrag,
@@ -302,11 +303,13 @@ function computeBloomSizes() {
     bloomUvViewport.w = bloomUvViewport.y + bloomDownSampleViewport.w / convolutionSize.y;
 
     const bloomStrength = 1;
-    const amount = (bloomStrength * 1e6) / Math.pow(powerTwoCeilingBase(viewportSize.x * viewportSize.y), 5.1);
-    finalizeColorMaterial.uniforms.uBloomAmount.value = amount;
+    finalizeColorMaterial.uniforms.uBloomAmount.value = (bloomStrength * 1e6) / Math.pow(powerTwoCeilingBase(viewportSize.x * viewportSize.y), 5.1);
 
     let h = convolutionSize.y / Math.max(convolutionSize.x, convolutionSize.y);
     flareMaterial.uniforms.uAspect.value = new Vector2(convolutionSize.x / convolutionSize.y * h, h);
+
+    // TODO find better solution for a constant flare size across screens
+    flareMaterial.uniforms.uScale.value = Math.max(1.75, 0.75 * Math.max(viewportSize.x, viewportSize.y) / Math.min(viewportSize.x, viewportSize.y));
 }
 
 function run(t = 0) {

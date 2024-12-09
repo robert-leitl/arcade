@@ -319,7 +319,7 @@ float scene(vec3 p) {
     p.xy -= paint.xy * .8;
 
     float rNoise = rippleDisplacement(p, uTime * .05);
-    p += rNoise * .2;
+    //p += rNoise * .2;
 
     // sphere sdf
     float radius = 1.5 + paint.w * .1;
@@ -528,7 +528,14 @@ vec3 grid(vec2 uv, vec2 aspect, float softness) {
     shadow = shadow * .9 + .1;
 
     vec3 gridColor = vec3(.7, 0.75, 1.7) * .8;
-    return mix(vec3(0.008, 0.01, 0.02) * glowMask, gridColor * (paint.z * 16. + 1.) * glowMask, b) * shadow;
+    gridColor = mix(vec3(0.008, 0.01, 0.02) * glowMask, gridColor * (paint.z * 16. + 1.) * glowMask, b) * shadow;
+
+    float dotDist = sdBox2d(st, vec2(.05));
+    dotDist = 1. - smoothstep(0., .05, dotDist);
+    dotDist *= 15.;
+    vec3 dotColor = vec3(1., 1., 0.9) * dotDist * 0.;
+
+    return max(dotColor, gridColor);
 }
 
 
@@ -571,12 +578,12 @@ void main(){
     if (surfaceEntryDist >= maxDis) { // if ray doesn't hit anything
         color = grid(vUv, aspect, 0.02);
     } else {
-        vec3 L = vec3(1., 2., 0.);
+        vec3 L = vec3(2., 2., 0.);
         vec3 N = normal;
 
         // Calculate Diffuse model
         float NdotL = clamp(dot(N, L), 0., 1.);
-        float diff = max(NdotL, 0.0) * .1;
+        float diff = max(NdotL, 0.0) * .2;
 
         vec4 refraction = getRefraction(rd, N, iorAir, iorGlass);
         vec2 fresnel = getDialectricFresenlFactors(rd, N, refraction.xyz, iorAir, iorGlass, 1.);
@@ -594,7 +601,7 @@ void main(){
 
         // Calculate inner Diffuse model
         NdotL = clamp(dot(exitNormal, L), 0., 1.);
-        //diff += max(NdotL, 0.0) * .05;
+        diff += max(NdotL, 0.0) * .05;
 
         refraction = getRefraction(rd, -exitNormal, iorGlass, iorAir);
         fresnel = getDialectricFresenlFactors(rd, exitNormal, refraction.xyz, iorGlass, iorAir, 1.);

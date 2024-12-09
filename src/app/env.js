@@ -31,7 +31,7 @@ export class Env {
             new IcosahedronGeometry(.3, 12),
             new MeshBasicMaterial({color: new Color(0xff00af).multiplyScalar(4)})
         );
-        p1.position.set(0, -.9, 0);
+        p1.position.set(-0.2, -.9, 0);
         this.scene.add(p1);
 
         const p2 = new Mesh(

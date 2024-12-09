@@ -10,7 +10,7 @@ const isDev = import.meta.env.MODE === 'development';
 let pane;
 
 if (isDev) {
-    import('https://greggman.github.io/webgl-lint/webgl-lint.js');
+    //import('https://greggman.github.io/webgl-lint/webgl-lint.js');
 }
 
 if (hasDebugParam || isDev) {

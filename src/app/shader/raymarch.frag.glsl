@@ -327,7 +327,7 @@ float scene(vec3 p) {
     float sphereDist = distance(p, vec3(0., 0., 0)) - radius;
 
     // octahedron sdf
-    p = rotateY(p, uTime * 0.0002);
+    p = rotateY(p, uTime * 0.00015);
     float octaDist = sdOctahedron(p, 1.1) - .6;
     octaDist += rNoise * uAnimationParams.y;
 
@@ -548,8 +548,8 @@ vec3 grid(vec2 uv, vec2 aspect, float softness) {
     dotMask *= uAnimationParams.x;
     float dotDist = sdBox2d(st, vec2(.05));
     dotDist = 1. - smoothstep(0., .05, dotDist);
-    dotDist *= 45.;
-    vec3 dotColor = vec3(1., 1., 0.9) * dotDist * dotMask;
+    dotDist *= 80.;
+    vec3 dotColor = vec3(1., 1., 1.9) * dotDist * dotMask;
 
     return max(dotColor, gridColor);
 }

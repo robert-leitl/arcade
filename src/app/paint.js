@@ -73,7 +73,7 @@ export class Paint {
         this.renderSize = viewportSize.clone().multiplyScalar(this.RENDER_SCALE);
 
         this.swapRenderTargets[0].setSize(this.renderSize.x, this.renderSize.y);
-        this.swapRenderTargets[0].setSize(this.renderSize.x, this.renderSize.y);
+        this.swapRenderTargets[1].setSize(this.renderSize.x, this.renderSize.y);
 
         const aspect = this.renderSize.clone().multiplyScalar(1 / Math.max(this.renderSize.x, this.renderSize.y));
         this.paintMaterial.uniforms.uAspect.value = aspect.clone();

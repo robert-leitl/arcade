@@ -25,6 +25,18 @@ export class Music extends Emitter {
     maj7ChordIntervals = [0, 4, 7, 11];
     min7ChordIntervals = [0, 3, 7, 10];
 
+    c00 = ['G4', 'B2', 'E3'];
+    c01 = ['E4', 'B2', 'E3'];
+    c02 = ['G#3', 'D#3', 'A4'];
+
+    c10 = ['G3', 'B4', 'E3'];
+    c11 = ['C3', 'G2', 'C4'];
+    c12 = ['A#4', 'F3', 'C4'];
+
+    c20 = ['C3', 'G2', 'C4'];
+    c21 = ['F3', 'C3', 'F2'];
+    c22 = ['G#3', 'D#3', 'G4'];
+
     melodyNoteIntervals = [];
     randomNotesBuffer = [];
     randomWalkIndex = 12;
@@ -39,9 +51,8 @@ export class Music extends Emitter {
         const compressor = new Tone.Compressor().toDestination();
         const destination = compressor;
 
-        const crusher = new Tone.BitCrusher(6);
-        const cheby = new Tone.Chebyshev(2);
-        const dist = new Tone.Distortion(.3);
+        const harmonyDist = new Tone.Distortion({ distortion: 0.4, wet: .5 });
+        const harmonyVolume = new Tone.Volume(-27);
         const phaser = new Tone.Phaser({
             frequency: 10,
             octaves: 2,
@@ -49,63 +60,75 @@ export class Music extends Emitter {
         })
         this.harmonyInstrument = new Tone.PolySynth(
             Tone.AMSynth, {
-                volume: -30,
                 oscillator: {
                     type: "fatsawtooth",
                     count: 3,
                     spread: 15,
                 },
                 envelope: {
-                    attack: 0.05,
+                    attack: .1,
                     decay: 0.,
-                    sustain: 0.9,
-                    release: 0.8,
+                    sustain: 1,
+                    release: 1,
                 },
                 modulation: {
                     type: "square",
                 },
             }
-        ).chain(dist, destination);
+        ).chain(harmonyDist, harmonyVolume, destination);
         const chordProgression = [
-            ...this.min7ChordIntervals.map(i => [0, this.MIDI_NUM_NAMES[i + rootNote]]),
-            ...this.maj7ChordIntervals.map(i => ['1:0:0', this.MIDI_NUM_NAMES[i + rootNote - 2]]),
-            ...this.minChordIntervals.map(i => ['2:0:0', this.MIDI_NUM_NAMES[i + rootNote - 5]]),
-            ...this.majChordIntervals.map(i => ['3:0:0', this.MIDI_NUM_NAMES[i + rootNote - 7]])
-        ];
-        // this.harmonyPart = new Tone.Part((time, chord) => {
-        //     this.harmonyInstrument.triggerAttackRelease(chord, '0:3:3', time);
-        // }, chordProgression ).start('0:0:0');
-        // this.harmonyPart.loop = true;
-        // this.harmonyPart.loopEnd = '4:0:0';
+            ...this.c00.map(n => ['0:0:0', n]),
+            ...this.c01.map(n => ['1:0:0', n]),
+            ...this.c02.map(n => ['2:0:0', n]),
 
-        const reverb = new Tone.Reverb(30);
+            ...this.c10.map(n => ['3:0:0', n]),
+            ...this.c11.map(n => ['4:0:0', n]),
+            ...this.c12.map(n => ['5:0:0', n]),
+
+            ...this.c00.map(n => ['6:0:0', n]),
+            ...this.c01.map(n => ['7:0:0', n]),
+            ...this.c02.map(n => ['8:0:0', n]),
+
+            ...this.c20.map(n => ['9:0:0', n]),
+            ...this.c21.map(n => ['10:0:0', n]),
+            ...this.c22.map(n => ['11:0:0', n]),
+        ];
+        this.harmonyPart = new Tone.Part((time, chord) => {
+            this.harmonyInstrument.triggerAttackRelease(chord, '1n', time);
+        }, chordProgression ).start('6:0:0');
+        this.harmonyPart.loop = true;
+        this.harmonyPart.loopEnd = '12:0:0';
+
+
+        const sparkReverb = new Tone.Reverb(10);
         this.sparkInstrument = new Tone.Synth({
             volume: -30,
             oscillator: {
                 type: "fatsawtooth",
                 count: 3,
-                spread: 150,
+                spread: 100,
             },
             envelope: {
                 attack: 0.005,
                 decay: 0.,
-                sustain: 0.001
+                sustain: 1
             }
         });
-        this.sparkInstrument.chain(reverb, destination);
+        this.sparkInstrument.chain(sparkReverb, destination);
         this.sparkPart = new Tone.Part((time, notes) => {
             this.sparkInstrument.triggerAttackRelease(notes, '64n', time);
             Tone.Draw.schedule(() => this.emit('spark'), time);
-        }, [['0:1:2', 'D6']] ).start(0);
+        }, [['0:0:0', 'G6']] ).start('6:0:0');
         this.sparkPart.loop = true;
-        this.sparkPart.loopEnd = '0:8:0';
+        this.sparkPart.loopEnd = '6:0:0';
 
 
 
-
-        const filter = new Tone.Filter(200, 'lowpass');
+        const subReverb = new Tone.Reverb(10);
+        const subDist = new Tone.Distortion({ distortion: 0.7, wet: 1 });
+        const subLowPass = new Tone.Filter(100, 'lowpass');
         this.subInstrument = new Tone.Synth({
-            volume: -5,
+            volume: 1,
             envelope: {
                 attack: 0.005,
                 decay: 0.,
@@ -113,15 +136,15 @@ export class Music extends Emitter {
             },
             octaves: 10
         });
-        this.subInstrument.chain(filter, destination);
+        this.subInstrument.chain(subLowPass, subDist, subReverb, destination);
         this.subPart = new Tone.Part((time, notes) => {
             this.subInstrument.triggerAttackRelease(notes, '6n', time);
             Tone.Draw.schedule(() => this.emit('sub'), time);
-        }, [[0, 'D0']] ).start(0);
+        }, [[0, 'G0']] ).start('0:0:0');
         this.subPart.loop = true;
-        this.subPart.loopEnd = '0:2:0';
+        this.subPart.loopEnd = '3:0:0';
 
-        Tone.Transport.bpm.value = 60;
+        Tone.Transport.bpm.value = 180;
         Tone.Transport.stop();
 
 

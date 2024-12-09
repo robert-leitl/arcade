@@ -317,7 +317,7 @@ function computeBloomSizes() {
     flareMaterial.uniforms.uAspect.value = new Vector2(convolutionSize.x / convolutionSize.y * h, h);
 
     // TODO find better solution for a constant flare size across screens
-    flareMaterial.uniforms.uScale.value = Math.max(1.75, 0.75 * Math.max(viewportSize.x, viewportSize.y) / Math.min(viewportSize.x, viewportSize.y));
+    flareMaterial.uniforms.uScale.value = Math.max(1.75, 0.85 * Math.max(viewportSize.x, viewportSize.y) / Math.min(viewportSize.x, viewportSize.y));
 }
 
 function run(t = 0) {
@@ -388,10 +388,10 @@ function animate() {
     crtMaterial.uniforms.uTime.value = time;
     crtMaterial.uniforms.uFrame.value = frames;
 
-    sparkAnimationValue -= sparkAnimationValue * .01;
+    sparkAnimationValue -= sparkAnimationValue * .02;
     subAnimationValue -= subAnimationValue * .02;
 
-    raymarchMaterial.uniforms.uAnimationParams.value = new Vector4(sparkAnimationValue * sparkAnimationValue, subAnimationValue, 0, 0);
+    raymarchMaterial.uniforms.uAnimationParams.value = new Vector4(1 - Math.pow(1 - sparkAnimationValue, 2), subAnimationValue, 0, 0);
 
     paint.animate(deltaTimeMS);
 }

@@ -37,6 +37,8 @@ export class Music extends Emitter {
     c21 = ['F3', 'C3', 'F2'];
     c22 = ['G#3', 'D#3', 'G4'];
 
+    arp0 = ['C7', 'B6', 'G#6']
+
     melodyNoteIntervals = [];
     randomNotesBuffer = [];
     randomWalkIndex = 12;
@@ -98,6 +100,46 @@ export class Music extends Emitter {
         }, chordProgression ).start('6:0:0');
         this.harmonyPart.loop = true;
         this.harmonyPart.loopEnd = '12:0:0';
+
+
+        const meldoyDist = new Tone.Distortion({ distortion: 0.8, wet: .9 });
+        const melodyVolume = new Tone.Volume(-20);
+        const melodyReverb = new Tone.Reverb(10);
+        this.meldoyInstrument = new Tone.PolySynth(
+            Tone.AMSynth, {
+                oscillator: {
+                    type: "fatsawtooth",
+                    count: 4,
+                    spread: 80,
+                },
+                envelope: {
+                    attack: .1,
+                    decay: 0.,
+                    sustain: .1,
+                    release: .1,
+                },
+                modulation: {
+                    type: "square",
+                },
+            }
+        ).chain(meldoyDist, melodyVolume, melodyReverb, destination);
+        const meldoyProgression = [
+            ['0:0:0', this.arp0[0]],
+            ['0:1:0', this.arp0[1]],
+            ['0:2:0', this.arp0[2]],
+            ['0:3:0', this.arp0[1]],
+        ];
+        this.melodyPart = new Tone.Part((time, chord) => {
+            this.meldoyInstrument.triggerAttackRelease(chord, '16t', time);
+        }, meldoyProgression ).start('18:0:0');
+        this.melodyPart.loop = true;
+        this.melodyPart.loopEnd = '1:0:0';
+
+
+
+
+
+
 
 
         const sparkReverb = new Tone.Reverb(10);

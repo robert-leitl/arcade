@@ -329,7 +329,7 @@ float scene(vec3 p) {
     // octahedron sdf
     p = rotateY(p, uTime * 0.00015);
     float octaDist = sdOctahedron(p, 1.1) - .6;
-    octaDist += rNoise * uAnimationParams.y;
+    octaDist += rNoise * (uAnimationParams.y * .8 + .1);
 
     float rBoxDist = sdRoundBox(p, vec3(1.), .2);
 

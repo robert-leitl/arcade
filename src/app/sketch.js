@@ -416,8 +416,10 @@ function resize() {
     audioBtnCanvas.width = audioBtnRect.width;
     audioBtnCanvas.height = audioBtnRect.height;
 
-    audioBtnMesh.scale.set(audioBtnRect.width / viewportSize.x, audioBtnRect.height / viewportSize.y);
-    audioBtnMesh.position.set(0, -((audioBtnRect.top + audioBtnRect.height / 2) / viewportSize.y) + .495, 0);
+    const vpRect = renderer.domElement.getBoundingClientRect();
+    console.log(vpRect, audioBtnRect)
+    audioBtnMesh.scale.set((audioBtnRect.width) / vpRect.width, (audioBtnRect.height) / vpRect.height);
+    audioBtnMesh.position.set(0, -(((audioBtnRect.top + audioBtnRect.height / 2)) / vpRect.height) + .495, 0);
 
     renderBtnTexture();
 }

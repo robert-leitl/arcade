@@ -50,11 +50,11 @@ void main() {
     radius = clamp(radius, 0.0, 1.);
 
     // get a smooth paint from the distance to the segment
-    float smoothness = .07 * deviceSizeFactor;
+    float smoothness = .06 * deviceSizeFactor;
     float paint = 1. - smoothstep(radius, radius + smoothness, dist + smoothness * .5);
 
     // the velocity has more influence than the actual paint
-    float velocityMaskRadius = radius * 4.;
+    float velocityMaskRadius = radius * 3.;
     float velocityMaskSmoothness = .1;
     float velocityMask = 1. - smoothstep(velocityMaskRadius, velocityMaskRadius + velocityMaskSmoothness, dist + velocityMaskSmoothness * .2);
     // amplify the pointer velocity

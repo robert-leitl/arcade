@@ -102,7 +102,7 @@ export class Music extends Emitter {
 
         const sparkReverb = new Tone.Reverb(10);
         this.sparkInstrument = new Tone.Synth({
-            volume: -30,
+            volume: -35,
             oscillator: {
                 type: "fatsawtooth",
                 count: 3,
@@ -128,7 +128,7 @@ export class Music extends Emitter {
         const subDist = new Tone.Distortion({ distortion: 0.7, wet: 1 });
         const subLowPass = new Tone.Filter(100, 'lowpass');
         this.subInstrument = new Tone.Synth({
-            volume: 1,
+            volume: -5,
             envelope: {
                 attack: 0.005,
                 decay: 0.,
@@ -147,13 +147,17 @@ export class Music extends Emitter {
         Tone.Transport.bpm.value = 180;
         Tone.Transport.stop();
 
-
         this.audioToggleBtn = document.getElementById('audio-toggle');
+        this.audioToggleBtn.classList = [ 'stopped' ]
         this.audioToggleBtn.addEventListener('click', () => {
             if (this.isPlaying) this.stop();
             else this.start();
 
             this.isPlaying = !this.isPlaying;
+
+            this.audioToggleBtn.classList = [ this.isPlaying ? 'playing' : 'stopped' ];
+
+            this.emit('state');
         })
     }
 

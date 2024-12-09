@@ -1,13 +1,34 @@
 import * as THREE from 'three';
 import {
+    CanvasTexture,
     ClampToEdgeWrapping,
-    Color, CubeUVReflectionMapping, DirectionalLight, FloatType, GLSL3, HalfFloatType,
-    IcosahedronGeometry, LinearFilter, LoadingManager,
-    Mesh, MeshPhysicalMaterial,
-    MeshStandardMaterial, NearestFilter, NoToneMapping, PointLight, RawShaderMaterial,
-    Raycaster, RepeatWrapping, RGBAFormat, ShaderMaterial, TextureLoader,
+    Color,
+    CubeUVReflectionMapping,
+    DirectionalLight,
+    FloatType,
+    GLSL3,
+    HalfFloatType,
+    IcosahedronGeometry,
+    LinearFilter,
+    LoadingManager,
+    Mesh,
+    MeshBasicMaterial,
+    MeshPhysicalMaterial,
+    MeshStandardMaterial,
+    NearestFilter,
+    NoToneMapping,
+    OrthographicCamera,
+    PlaneGeometry,
+    PointLight,
+    RawShaderMaterial,
+    Raycaster,
+    RepeatWrapping,
+    RGBAFormat,
+    ShaderMaterial,
+    TextureLoader,
     Vector2,
-    Vector3, Vector4,
+    Vector3,
+    Vector4,
     WebGLRenderTarget
 } from 'three';
 import {resizeRendererToDisplaySize} from '../libs/three-utils';
@@ -78,6 +99,12 @@ let paint, env, music;
 let flareTex, blueNoiseTex, envMapTex;
 
 let subAnimationValue = 0, sparkAnimationValue = 0;
+
+let audioBtnElm = document.getElementById('audio-toggle');
+let audioBtnCanvas = document.createElement('canvas');
+let audioBtnRect;
+let audioBtnMesh;
+let audioBtnCamera = new OrthographicCamera(-.5, .5, .5, -.5, 0, 1);
 
 function powerTwoCeilingBase(e) {
     return Math.ceil(Math.log(e) / Math.log(2))
@@ -249,6 +276,11 @@ function setupScene(canvas) {
         finalizeColorMaterial
     );
 
+    audioBtnMesh = new Mesh(
+        new PlaneGeometry(1, 1),
+        new MeshBasicMaterial({
+            map: new CanvasTexture(audioBtnCanvas), transparent: true })
+    );
 
     rtScene = new WebGLRenderTarget(sceneRenderSize.x, sceneRenderSize.y, { type: HalfFloatType, samples: 1 });
     rtColor = new WebGLRenderTarget(sceneRenderSize.x, sceneRenderSize.y, { magFilter: NearestFilter, minFilter: NearestFilter });
@@ -288,6 +320,7 @@ function setupScene(canvas) {
 function setupEvents() {
     music.on('sub', e => subAnimationValue = 1);
     music.on('spark', e => sparkAnimationValue = 1);
+    music.on('state', e => renderBtnTexture());
 }
 
 function computeBloomSizes() {
@@ -350,7 +383,8 @@ function resize() {
         renderer.getSize(viewportSize);
         camera.aspect = viewportSize.x / viewportSize.y;
 
-        fitSphereAtOriginToViewport(1.8, camera, 0., 0.5, 0.5);
+        const padding = camera.aspect > 1 ? Math.min(0.2, camera.aspect - 1) : 0;
+        fitSphereAtOriginToViewport(1.8, camera, padding, 0.5, 0.5);
         camera.updateProjectionMatrix();
 
         sceneRenderSize = viewportSize.clone().multiplyScalar(sceneRenderScale);
@@ -376,6 +410,16 @@ function resize() {
 
         paint.resize(viewportSize);
     }
+
+    audioBtnRect = audioBtnElm.getBoundingClientRect();
+
+    audioBtnCanvas.width = audioBtnRect.width;
+    audioBtnCanvas.height = audioBtnRect.height;
+
+    audioBtnMesh.scale.set(audioBtnRect.width / viewportSize.x, audioBtnRect.height / viewportSize.y);
+    audioBtnMesh.position.set(0, -((audioBtnRect.top + audioBtnRect.height / 2) / viewportSize.y) + .495, 0);
+
+    renderBtnTexture();
 }
 
 function animate() {
@@ -388,7 +432,7 @@ function animate() {
     crtMaterial.uniforms.uTime.value = time;
     crtMaterial.uniforms.uFrame.value = frames;
 
-    sparkAnimationValue -= sparkAnimationValue * .02;
+    sparkAnimationValue -= sparkAnimationValue * .25;
     subAnimationValue -= subAnimationValue * .02;
 
     raymarchMaterial.uniforms.uAnimationParams.value = new Vector4(1 - Math.pow(1 - sparkAnimationValue, 2), subAnimationValue, 0, 0);
@@ -474,9 +518,12 @@ function render() {
     paint.render();
 
     renderer.setRenderTarget(rtScene);
+    renderer.autoClear = false;
     quadMesh.material = raymarchMaterial;
     raymarchMaterial.uniforms.uPaint.value = paint.texture;
     renderer.render( quadMesh, camera );
+    renderer.render( audioBtnMesh, audioBtnCamera );
+    renderer.autoClear = true;
 
     const viewport = rtFFT_0.viewport.clone();
     rtFFT_0.viewport = bloomDownSampleViewport;
@@ -535,6 +582,18 @@ function render() {
     quadMesh.material = crtMaterial;
     crtMaterial.uniforms.uColor.value = rtColor.texture;
     renderer.render( quadMesh, camera );
+}
+
+function renderBtnTexture() {
+    const canvas = audioBtnCanvas;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#e0e0ef';
+    ctx.font = `${Math.round(audioBtnCanvas.height * .75)}px monospace`;
+    ctx.fillText(music.isPlaying ? 'DISABLE AUDIO' : 'ENABLE AUDIO', canvas.width / 2, canvas.height / 1.75);
+    audioBtnMesh.material.map.needsUpdate = true;
 }
 
 export default {

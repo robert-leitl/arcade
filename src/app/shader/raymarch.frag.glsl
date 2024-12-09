@@ -546,6 +546,7 @@ vec3 grid(vec2 uv, vec2 aspect, float softness) {
     float dotMaskRadius = 4. * (1. - uAnimationParams.x);
     float dotMask = circle(dotUv, dotMaskRadius) - circle(dotUv, max(0., dotMaskRadius - 0.3));
     dotMask *= uAnimationParams.x;
+    dotMask = uAnimationParams.x;
     float dotDist = sdBox2d(st, vec2(.05));
     dotDist = 1. - smoothstep(0., .05, dotDist);
     dotDist *= 80.;

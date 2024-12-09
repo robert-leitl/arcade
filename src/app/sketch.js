@@ -22,6 +22,7 @@ import {OrbitControls, RGBELoader} from 'three/addons';
 import {Blit} from '../libs/blit.js';
 import {Paint} from './paint.js';
 import {Env} from './env.js';
+import {Music} from './music.js';
 
 // the target duration of one frame in milliseconds
 const TARGET_FRAME_DURATION_MS = 16;
@@ -72,9 +73,11 @@ const bloomUvViewport = new Vector4();
 const sceneRenderScale = .28;
 let sceneRenderSize;
 
-let paint, env;
+let paint, env, music;
 
 let flareTex, blueNoiseTex, envMapTex;
+
+let subAnimationValue = 0, sparkAnimationValue = 0;
 
 function powerTwoCeilingBase(e) {
     return Math.ceil(Math.log(e) / Math.log(2))
@@ -87,9 +90,7 @@ function init(canvas, onInit = null, isDev = false, pane = null) {
     _isDev = isDev;
     _pane = pane;
 
-    if (pane) {
-
-    }
+    music = new Music();
 
     const manager = new LoadingManager();
 
@@ -99,6 +100,7 @@ function init(canvas, onInit = null, isDev = false, pane = null) {
 
     manager.onLoad = () => {
         setupScene(canvas);
+        setupEvents();
     }
 }
 
@@ -214,6 +216,7 @@ function setupScene(canvas) {
             uRenderStage: { value: 0 },
             uEnvMapTexture: { value: env.texture },
             uPaint: { value: paint.texture },
+            uAnimationParams: { value: new Vector4() },
         },
         defines: {
             'CUBEUV_TEXEL_WIDTH': texelWidth,
@@ -280,6 +283,11 @@ function setupScene(canvas) {
 
     _isInitialized = true;
     resize();
+}
+
+function setupEvents() {
+    music.on('sub', e => subAnimationValue = 1);
+    music.on('spark', e => sparkAnimationValue = 1);
 }
 
 function computeBloomSizes() {
@@ -379,6 +387,11 @@ function animate() {
 
     crtMaterial.uniforms.uTime.value = time;
     crtMaterial.uniforms.uFrame.value = frames;
+
+    sparkAnimationValue -= sparkAnimationValue * .01;
+    subAnimationValue -= subAnimationValue * .02;
+
+    raymarchMaterial.uniforms.uAnimationParams.value = new Vector4(sparkAnimationValue * sparkAnimationValue, subAnimationValue, 0, 0);
 
     paint.animate(deltaTimeMS);
 }

@@ -8,6 +8,7 @@ uniform int uRenderStage;
 uniform sampler2D uEnvMapTexture;
 uniform sampler2D uPaint;
 uniform mat4 projectionMatrix;
+uniform vec4 uAnimationParams;
 
 in vec2 vUv;
 
@@ -271,8 +272,9 @@ float rippleDisplacement(
 ) {
     vec3 p = vec3(pos);
 
-    float noise1 = noise(p * .5 + time * 0.001);
-    float noise2 = noise(p * .5 - time * 0.002);
+    float freq = (.5 + uAnimationParams.y);
+    float noise1 = noise(p * freq + time * 0.001);
+    float noise2 = noise(p * freq - time * 0.002);
     float noise = sin(noise1 * 40. + cos(noise2 * 30.)) ;
     float displacement = (noise + 2.) * -0.018;
 
@@ -319,7 +321,6 @@ float scene(vec3 p) {
     p.xy -= paint.xy * .8;
 
     float rNoise = rippleDisplacement(p, uTime * .05);
-    //p += rNoise * .2;
 
     // sphere sdf
     float radius = 1.5 + paint.w * .1;
@@ -328,6 +329,7 @@ float scene(vec3 p) {
     // octahedron sdf
     p = rotateY(p, uTime * 0.0002);
     float octaDist = sdOctahedron(p, 1.1) - .6;
+    octaDist += rNoise * uAnimationParams.y;
 
     float rBoxDist = sdRoundBox(p, vec3(1.), .2);
 
@@ -506,6 +508,16 @@ float sdBox2d( vec2 p, vec2 b )
     return length(max(d,0.0)) + min(max(d.x,d.y),0.0);
 }
 
+float circle(in vec2 _st, in float _radius){
+    vec2 dist = _st;
+    float softness = 0.8;
+    return 1. - smoothstep(
+                    _radius-(_radius*softness),
+                    _radius+(_radius*softness),
+                    dot(dist,dist)*1.0
+    );
+}
+
 vec3 grid(vec2 uv, vec2 aspect, float softness) {
     vec4 paint = texture(uPaint, uv);
 
@@ -530,10 +542,14 @@ vec3 grid(vec2 uv, vec2 aspect, float softness) {
     vec3 gridColor = vec3(.7, 0.75, 1.7) * .8;
     gridColor = mix(vec3(0.008, 0.01, 0.02) * glowMask, gridColor * (paint.z * 16. + 1.) * glowMask, b) * shadow;
 
+    vec2 dotUv = (vUv * 2. - 1.) * aspect;
+    float dotMaskRadius = 4. * (1. - uAnimationParams.x);
+    float dotMask = circle(dotUv, dotMaskRadius) - circle(dotUv, max(0., dotMaskRadius - 0.3));
+    dotMask *= uAnimationParams.x;
     float dotDist = sdBox2d(st, vec2(.05));
     dotDist = 1. - smoothstep(0., .05, dotDist);
-    dotDist *= 15.;
-    vec3 dotColor = vec3(1., 1., 0.9) * dotDist * 0.;
+    dotDist *= 45.;
+    vec3 dotColor = vec3(1., 1., 0.9) * dotDist * dotMask;
 
     return max(dotColor, gridColor);
 }
@@ -583,11 +599,11 @@ void main(){
 
         // Calculate Diffuse model
         float NdotL = clamp(dot(N, L), 0., 1.);
-        float diff = max(NdotL, 0.0) * .2;
+        float diff = max(NdotL, 0.0);
 
         vec4 refraction = getRefraction(rd, N, iorAir, iorGlass);
         vec2 fresnel = getDialectricFresenlFactors(rd, N, refraction.xyz, iorAir, iorGlass, 1.);
-        vec3 reflectedColor = getEnviornmentReflection(rd, N).rgb * fresnel.x;
+        vec3 reflectedColor = getEnviornmentReflection(rd, N).rgb * fresnel.x * (diff * .3 + .7);
         vec3 transmittance = vec3(1.) * fresnel.y;
 
         // ray march the volume
@@ -606,13 +622,13 @@ void main(){
         refraction = getRefraction(rd, -exitNormal, iorGlass, iorAir);
         fresnel = getDialectricFresenlFactors(rd, exitNormal, refraction.xyz, iorGlass, iorAir, 1.);
         transmittance *= clamp(exp(-surfaceExitDist * .3), 0., 1.);
-        reflectedColor += getEnviornmentReflection(rd, -exitNormal).rgb * .2 * fresnel.x * transmittance;
+        reflectedColor += getEnviornmentReflection(rd, -exitNormal).rgb * .2 * fresnel.x * transmittance * (diff * .3 + .7);
         transmittance *= fresnel.y;
 
         vec2 refractionOffset = refraction.xy * .8;
         vec3 transmittedColor = grid(vUv + refractionOffset, aspect, 0.07) * transmittance;
 
-        color = reflectedColor + transmittedColor + diff * vec3(.8, 0.1, 1.);
+        color = reflectedColor + transmittedColor + diff * vec3(.8, 0.1, 1.) * .2;
     }
 
     outColor = vec4(color, 1.);

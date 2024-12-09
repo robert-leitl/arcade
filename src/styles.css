@@ -24,3 +24,10 @@ html, body, canvas {
   width: 320px !important;
   font-size: 0.9em;
 }
+
+#audio-toggle {
+    position: absolute;
+    bottom: 2em;
+    left: 50%;
+    transform: translateX(-50%);
+}

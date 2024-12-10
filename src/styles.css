@@ -11,6 +11,7 @@ html, body, canvas {
 }
 
 .github-link {
+    display: none;
     position: absolute;
     right: 0;
     bottom: 0;

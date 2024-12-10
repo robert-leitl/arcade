@@ -4,7 +4,7 @@
 
 [DEMO](https://robert-leitl.github.io/arcade/dist/)
 
-Retro sound machine with excessive bloom flares due to FFT convolution. Built using Three.js, Tone.js and Vite.
+Retro sound machine with excessive bloom flares thanks to FFT convolution. Built using Three.js, Tone.js and Vite.
 
 ## Credits
 

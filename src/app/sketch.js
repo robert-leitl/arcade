@@ -106,6 +106,8 @@ let audioBtnRect;
 let audioBtnMesh;
 let audioBtnCamera = new OrthographicCamera(-.5, .5, .5, -.5, 0, 1);
 
+const loadingMsgElm = document.getElementById('loading-message');
+
 function powerTwoCeilingBase(e) {
     return Math.ceil(Math.log(e) / Math.log(2))
 }
@@ -126,6 +128,8 @@ function init(canvas, onInit = null, isDev = false, pane = null) {
     envMapTex = new RGBELoader(manager).load((new URL('../assets/env-02.hdr', import.meta.url)).toString())
 
     manager.onLoad = () => {
+        loadingMsgElm.style.display = 'none';
+
         setupScene(canvas);
         setupEvents();
     }
@@ -263,6 +267,7 @@ function setupScene(canvas) {
             uTime: { value: 0 },
             uFrame: { value: 0 },
             uResolution: { value: viewportSize.clone() },
+            uAnimationParams: { value: new Vector4() },
         },
         vertexShader: QuadGeometry.vertexShader,
         fragmentShader: crtFrag,
@@ -417,7 +422,6 @@ function resize() {
     audioBtnCanvas.height = audioBtnRect.height;
 
     const vpRect = renderer.domElement.getBoundingClientRect();
-    console.log(vpRect, audioBtnRect)
     audioBtnMesh.scale.set((audioBtnRect.width) / vpRect.width, (audioBtnRect.height) / vpRect.height);
     audioBtnMesh.position.set(0, -(((audioBtnRect.top + audioBtnRect.height / 2)) / vpRect.height) + .495, 0);
 
@@ -429,17 +433,20 @@ function animate() {
 
     //l1.position.set(Math.cos(time * 0.0005), Math.sin(time * 0.0005), 0);
 
+    const timeScale = deltaTimeMS / TARGET_FRAME_DURATION_MS;
+
     raymarchMaterial.uniforms.uTime.value = time;
 
     crtMaterial.uniforms.uTime.value = time;
     crtMaterial.uniforms.uFrame.value = frames;
 
-    sparkAnimationValue -= sparkAnimationValue * .25;
-    subAnimationValue -= subAnimationValue * .02;
+    sparkAnimationValue -= sparkAnimationValue * .25 * timeScale;
+    subAnimationValue -= subAnimationValue * .02 * timeScale;
 
     raymarchMaterial.uniforms.uAnimationParams.value = new Vector4(1 - Math.pow(1 - sparkAnimationValue, 2), subAnimationValue, 0, 0);
+    crtMaterial.uniforms.uAnimationParams.value = new Vector4(1 - Math.pow(1 - sparkAnimationValue, 2), subAnimationValue, 0, 0);
 
-    paint.animate(deltaTimeMS);
+    paint.animate(deltaTimeMS, timeScale);
 }
 
 function fft(opts) {

@@ -36,7 +36,8 @@ export class Paint {
             uniforms: {
                 uPrevPaint: { value: null },
                 uPointerInfo: { value: this.pointerInfo },
-                uAspect: { value: new Vector2() }
+                uAspect: { value: new Vector2() },
+                uTimeScale: { value: 1 }
             },
             vertexShader: QuadGeometry.vertexShader,
             fragmentShader: paintFrag,
@@ -82,23 +83,25 @@ export class Paint {
         this.pointerVelocityAttenuation = Math.min(1, (Math.max(this.renderSize.x, this.renderSize.y) / 1400));
     }
 
-    animate(dt) {
+    animate(dt, timeScale) {
         const targetVelocity = new Vector2();
 
         if (this.hasPointerInfo) {
             targetVelocity.set(
-                (this.pointerInfo.position.x - this.pointerInfo.previousPosition.x) / dt,
-                (this.pointerInfo.position.y - this.pointerInfo.previousPosition.y) / dt
+                (this.pointerInfo.position.x - this.pointerInfo.previousPosition.x) / (dt / timeScale),
+                (this.pointerInfo.position.y - this.pointerInfo.previousPosition.y) / (dt / timeScale)
             );
             //targetVelocity.multiplyScalar(this.pointerVelocityAttenuation);
         }
 
         // smooth out the velocity changes a bit
-        const velDamping = this.pointerInfo.isDown ? 4 : 4;
+        const velDamping = (this.pointerInfo.isDown ? 4 : 4) / timeScale;
         this.pointerInfo.velocity.set(
             this.pointerInfo.velocity.x + (targetVelocity.x - this.pointerInfo.velocity.x) / velDamping,
             this.pointerInfo.velocity.y + (targetVelocity.y - this.pointerInfo.velocity.y) / velDamping
         );
+
+        this.paintMaterial.uniforms.uTimeScale.value = timeScale;
     }
 
     render() {

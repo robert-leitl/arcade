@@ -2,6 +2,7 @@ uniform sampler2D uColor;
 uniform vec2 uResolution;
 uniform float uTime;
 uniform int uFrame;
+uniform vec4 uAnimationParams;
 
 layout(location = 0) out vec4 outColor;
 
@@ -33,7 +34,7 @@ vec4 fromLinear(vec4 linearRGB)
 #define CHROMASIZE 7.0
 #define SUBCARRIER .1
 #define CROSSTALK 0.1
-#define SCANFLICKER 0.33
+#define SCANFLICKER 1.
 #define INTERFERENCE1 0.001
 #define INTERFERENCE2 0.001
 
@@ -103,14 +104,14 @@ vec4 crt(vec4 color, vec2 uv, vec2 inputResolution) {
     uv = fisheye(uv);
     float vign = vignette(uv);
     uv += vec2(0.5);
-    float mframe = float(uFrame % 2);
-    //uv.y += mframe * 1.0 / inputResolution.y * SCANFLICKER;
+    float mframe = float(int(uTime) % 2);
+    uv.y += mframe * 1.0 / inputResolution.y * SCANFLICKER * uAnimationParams.x;
 
     // interference
 
     float r = random(vec2(0.0, scany), fract(uTime * 0.00001));
     if (r > 0.95) {r *= 3.0;}
-    float ifx1 = INTERFERENCE1 * 150.0 / inputResolution.x * r;
+    float ifx1 = (INTERFERENCE1 + uAnimationParams.y * .002) * 150.0 / inputResolution.x * r;
     float ifx2 = INTERFERENCE2 * (r * peak(uv.y, 0.2, 0.2));
     uv.x += ifx1 + -ifx2;
 
@@ -139,10 +140,6 @@ vec4 crt(vec4 color, vec2 uv, vec2 inputResolution) {
 
     float lchroma = signal.y * SATURATION;
     float phase = signal.z * 6.28318530718;
-
-//    signal.x *= BRIGHTNESS;
-//    signal.y = lchroma * sin(phase);
-//    signal.z = lchroma * cos(phase);
 
     // color subcarrier signal, crosstalk
 

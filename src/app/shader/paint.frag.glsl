@@ -1,5 +1,6 @@
 uniform sampler2D uPrevPaint;
 uniform vec2 uAspect;
+uniform float uTimeScale;
 
 struct PointerInfo {
     bool isDown;
@@ -54,7 +55,7 @@ void main() {
     float paint = 1. - smoothstep(radius, radius + smoothness, dist + smoothness * .5);
 
     // the velocity has more influence than the actual paint
-    float velocityMaskRadius = radius * 3.;
+    float velocityMaskRadius = radius * 2.5 / deviceSizeFactor;
     float velocityMaskSmoothness = .1;
     float velocityMask = 1. - smoothstep(velocityMaskRadius, velocityMaskRadius + velocityMaskSmoothness, dist + velocityMaskSmoothness * .2);
     // amplify the pointer velocity
@@ -84,7 +85,7 @@ void main() {
     // move velocity
     vel = (offsetInputValue.xy * 1.5 + vel) / 2.;
     // dissipate the velocity over time
-    vel *= 0.95;
+    vel *= 1. - (0.04 * uTimeScale);
 
     // the strength according to the velocity
     paint = min(1., paint * strength * 200.);
@@ -93,11 +94,11 @@ void main() {
     paint += offsetInputValue.z;
     paint = clamp(paint, 0., 1.);
     // dissipate the paint over time
-    paint *= 0.97;
+    paint *= 1. - (0.03 * uTimeScale);
 
 
     float speed = (length(vel) * 3. + offsetInputValue.w) * .5;
-    speed *= .98;
+    speed *= 1. - (0.02 * uTimeScale);
 
 
     data = vec4(vel, paint, speed);

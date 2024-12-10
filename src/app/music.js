@@ -1,5 +1,6 @@
 import * as Tone from 'tone'
-import {Emitter, getDraw} from 'tone';
+import {Context, Emitter, getDraw, setContext, Transport} from 'tone';
+
 
 export class Music extends Emitter {
 
@@ -37,16 +38,43 @@ export class Music extends Emitter {
     c21 = ['F3', 'C3', 'F2'];
     c22 = ['G#3', 'D#3', 'G4'];
 
-    arp0 = ['C7', 'B6', 'G#6']
+    arp0 = ['C7', 'B6', 'G#6', 'G6']
 
     melodyNoteIntervals = [];
     randomNotesBuffer = [];
     randomWalkIndex = 12;
 
+    isInitialized = false;
     isPlaying = false;
 
     constructor() {
         super();
+
+        this.audioToggleBtn = document.getElementById('audio-toggle');
+        this.audioToggleBtn.classList = [ 'stopped' ]
+        this.audioToggleBtn.addEventListener('click', async () => {
+            if (!this.isInitialized) {
+                await Tone.start();
+                await this.init();
+                this.isInitialized = true;
+            }
+
+            if (this.isPlaying){
+                this.stop();
+            } else {
+                this.start();
+            }
+
+            this.isPlaying = !this.isPlaying;
+
+            this.audioToggleBtn.classList = [ this.isPlaying ? 'playing' : 'stopped' ];
+
+            this.emit('state');
+        })
+    }
+
+    async init() {
+        Tone.getContext().lookAhead = 0.01;
 
         const rootNote = this.MELODY_KEY_NOTE;
 
@@ -102,38 +130,32 @@ export class Music extends Emitter {
         this.harmonyPart.loopEnd = '12:0:0';
 
 
-        const meldoyDist = new Tone.Distortion({ distortion: 0.8, wet: .9 });
-        const melodyVolume = new Tone.Volume(-20);
-        const melodyReverb = new Tone.Reverb(10);
+        const meldoyDist = new Tone.Distortion({ distortion: 1, wet: .9 });
+        const melodyVolume = new Tone.Volume(-37);
+        const melodyReverb = new Tone.Reverb(2);
         this.meldoyInstrument = new Tone.PolySynth(
             Tone.AMSynth, {
                 oscillator: {
                     type: "fatsawtooth",
                     count: 4,
-                    spread: 80,
+                    spread: 180,
                 },
                 envelope: {
-                    attack: .1,
+                    attack: .001,
                     decay: 0.,
-                    sustain: .1,
-                    release: .1,
+                    sustain: .01,
+                    release: .01,
                 },
                 modulation: {
                     type: "square",
                 },
             }
-        ).chain(meldoyDist, melodyVolume, melodyReverb, destination);
-        const meldoyProgression = [
-            ['0:0:0', this.arp0[0]],
-            ['0:1:0', this.arp0[1]],
-            ['0:2:0', this.arp0[2]],
-            ['0:3:0', this.arp0[1]],
-        ];
-        this.melodyPart = new Tone.Part((time, chord) => {
-            this.meldoyInstrument.triggerAttackRelease(chord, '16t', time);
-        }, meldoyProgression ).start('18:0:0');
-        this.melodyPart.loop = true;
-        this.melodyPart.loopEnd = '1:0:0';
+        ).chain(meldoyDist, melodyVolume, destination);
+        this.melodyArpeggio = new Tone.Pattern((time, note) => {
+            this.meldoyInstrument.triggerAttackRelease(note, '16n');
+        }, this.arp0, 'upDown').start('30:0:0');
+        this.melodyArpeggio.iterations = 6*12*4;
+        this.melodyArpeggio.interval = '8t';
 
 
 
@@ -188,19 +210,6 @@ export class Music extends Emitter {
 
         Tone.Transport.bpm.value = 180;
         Tone.Transport.stop();
-
-        this.audioToggleBtn = document.getElementById('audio-toggle');
-        this.audioToggleBtn.classList = [ 'stopped' ]
-        this.audioToggleBtn.addEventListener('click', () => {
-            if (this.isPlaying) this.stop();
-            else this.start();
-
-            this.isPlaying = !this.isPlaying;
-
-            this.audioToggleBtn.classList = [ this.isPlaying ? 'playing' : 'stopped' ];
-
-            this.emit('state');
-        })
     }
 
     start() {

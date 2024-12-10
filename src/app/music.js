@@ -92,7 +92,7 @@ export class Music extends Emitter {
         this.harmonyPart = new Tone.Part((time, chord) => {
             this.harmonyInstrument.triggerAttackRelease(chord, '1n', time);
         }, chordProgression ).start('6:0:0');
-        this.harmonyPart.loop = true;
+        this.harmonyPart.loop = 6;
         this.harmonyPart.loopEnd = '12:0:0';
 
 

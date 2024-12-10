@@ -17,7 +17,7 @@ layout(location = 0) out vec4 outColor;
 #include <cube_uv_reflection_fragment>
 
 float eps = 0.0001;
-float maxDis = 50.;
+float maxDis = 30.;
 int maxSteps = 50;
 
 float sdTorus( vec3 p, vec2 t )
@@ -157,7 +157,7 @@ float scene(vec3 p) {
 
     // octahedron sdf
     p = rotateY(p, uTime * 0.00015 - paint.x * 4.);
-    float octaDist = sdOctahedron(p, 1.1) - .6;
+    float octaDist = sdOctahedron(p, 1.4) - .4;
     octaDist += rNoise * (uAnimationParams.y * .8 + .1);
 
     float rBoxDist = sdRoundBox(p, vec3(1.), .2);
@@ -217,9 +217,9 @@ float getSurfaceExitIntersectionDist(
     return exitDist;
 }
 
-vec3 calcNormal( in vec3 p ) // for function f(p)
+vec3 calcNormal( in vec3 p )
 {
-    float h = 0.05; // replace by an appropriate value
+    float h = 0.05;
     vec2 k = vec2(1.,-1.);
     return normalize(   k.xyy * scene( p + k.xyy*h ) +
                         k.yyx * scene( p + k.yyx*h ) +
@@ -326,79 +326,91 @@ vec3 grid(vec2 uv, vec2 aspect, float softness) {
     return max(dotColor, gridColor);
 }
 
-
 void main(){
     vec3 color = vec3(0.);
-
+    float AA_size = 2.0;
+    float count = 0.0;
+    vec2 texelSize = 1. / uResolution;
     vec2 aspect = uResolution / max(uResolution.x, uResolution.y);
-
     float iorAir = 1.;
+    vec3 L = vec3(2., 2., 0.);
     float iorGlass = 1.45;
+    bool marchVolume = false;
+    vec4 volumeEntryRefraction;
+    vec3 volumeEntryPoint;
 
-    vec3 backgroundColor = vec3(0.9, 0.93, 1.) * .01;
+    for (float aaY = 0.0; aaY < AA_size; aaY++)
+    {
+        for (float aaX = 0.0; aaX < AA_size; aaX++)
+        {
+            vec2 uv = vUv + texelSize * vec2(aaX, aaY) / AA_size;
+            vec4 paint = texture(uPaint, uv);
 
-    vec4 paint = texture(uPaint, vUv);
+            // Get ray origin and direction from camera uniforms
+            vec3 ro = uCamPos;
+            vec3 rd = (uCamInvProjMat * vec4(uv * 2.-1., 0, 1)).xyz;
+            rd = (uCamToWorldMat * vec4(rd, 0)).xyz;
+            rd = normalize(rd);
 
-    // Get UV from vertex shader
-    vec2 uv = vUv.xy;
+            // Get the environment texture color
+            vec4 envColor = texture(uEnvMapTexture, equirectUv(normalize(rd + vec3(0., 0., 0.8))));
 
-    // Get ray origin and direction from camera uniforms
-    vec3 ro = uCamPos;
-    vec3 rd = (uCamInvProjMat * vec4(uv * 2.-1., 0, 1)).xyz;
-    rd = (uCamToWorldMat * vec4(rd, 0)).xyz;
-    rd = normalize(rd);
+            // Ray marching and find total distance travelled
+            float surfaceEntryDist = findSurfaceIntersectionDist(ro, rd); // use normalized ray
 
-    // Get the environment texture color
-    vec4 envColor = texture(uEnvMapTexture, equirectUv(normalize(rd + vec3(0., 0., 0.8))));
+            // Find the hit position
+            vec3 surfaceEntryPoint = ro + surfaceEntryDist * rd;
 
-    // Ray marching and find total distance travelled
-    float surfaceEntryDist = findSurfaceIntersectionDist(ro, rd); // use normalized ray
+            // Get normal of hit point
+            vec3 normal = calcNormal(surfaceEntryPoint);
 
-    // Find the hit position
-    vec3 surfaceEntryPoint = ro + surfaceEntryDist * rd;
+            if (surfaceEntryDist >= maxDis) { // if ray doesn't hit anything
+                color += grid(uv, aspect, 0.02);
+            } else {
+                vec3 N = normal;
 
-    // Get normal of hit point
-    vec3 normal = calcNormal(surfaceEntryPoint);
+                // Calculate Diffuse model
+                float NdotL = clamp(dot(N, L), 0., 1.);
+                float diff = max(NdotL, 0.0);
 
-    if (surfaceEntryDist >= maxDis) { // if ray doesn't hit anything
-        color = grid(vUv, aspect, 0.02);
-    } else {
-        vec3 L = vec3(2., 2., 0.);
-        vec3 N = normal;
+                vec4 refraction = getRefraction(rd, N, iorAir, iorGlass);
+                vec2 fresnel = getDialectricFresenlFactors(rd, N, refraction.xyz, iorAir, iorGlass, 1.);
+                vec3 reflectedColor = getEnviornmentReflection(rd, N).rgb * fresnel.x * (diff * .3 + .7);
 
-        // Calculate Diffuse model
-        float NdotL = clamp(dot(N, L), 0., 1.);
-        float diff = max(NdotL, 0.0);
+                marchVolume = true;
+                volumeEntryRefraction = refraction;
+                volumeEntryPoint = surfaceEntryPoint - N * eps; // offset the ray origin to be inside the object
 
-        vec4 refraction = getRefraction(rd, N, iorAir, iorGlass);
-        vec2 fresnel = getDialectricFresenlFactors(rd, N, refraction.xyz, iorAir, iorGlass, 1.);
-        vec3 reflectedColor = getEnviornmentReflection(rd, N).rgb * fresnel.x * (diff * .3 + .7);
-        vec3 transmittance = vec3(1.) * fresnel.y;
+                color += reflectedColor + diff * vec3(.8, 0.1, 1.) * .2;
+            }
 
+            count += 1.0;
+        }
+    }
+
+    if (marchVolume) {
         // ray march the volume
-        rd = refraction.xyz;
-        ro = surfaceEntryPoint - N * eps; // offset the ray origin to be inside the object
+        vec3 rd = volumeEntryRefraction.xyz;
+        vec3 ro = volumeEntryPoint;
         float surfaceExitDist = getSurfaceExitIntersectionDist(ro, rd);
         vec3 surfaceExitPoint = ro + surfaceExitDist * rd;
 
         // Get normal of hit point
         vec3 exitNormal = calcNormal(surfaceExitPoint);
 
-        // Calculate inner Diffuse model
-        NdotL = clamp(dot(exitNormal, L), 0., 1.);
-        diff += max(NdotL, 0.0) * .05;
-
-        refraction = getRefraction(rd, -exitNormal, iorGlass, iorAir);
-        fresnel = getDialectricFresenlFactors(rd, exitNormal, refraction.xyz, iorGlass, iorAir, 1.);
-        transmittance *= clamp(exp(-surfaceExitDist * .3), 0., 1.);
-        reflectedColor += getEnviornmentReflection(rd, -exitNormal).rgb * .2 * fresnel.x * transmittance * (diff * .3 + .7);
+        vec4 refraction = getRefraction(rd, -exitNormal, iorGlass, iorAir);
+        vec2 fresnel = getDialectricFresenlFactors(rd, exitNormal, refraction.xyz, iorGlass, iorAir, 1.);
+        vec3 transmittance = vec3(1.) * clamp(exp(-surfaceExitDist * .3), 0., 1.);
+        vec3 reflectedColor = getEnviornmentReflection(rd, -exitNormal).rgb * .2 * fresnel.x * transmittance;
         transmittance *= fresnel.y;
 
         vec2 refractionOffset = refraction.xy * .8;
-        vec3 transmittedColor = grid(vUv + refractionOffset, aspect, 0.07) * transmittance;
+        vec3 transmittedColor = grid(vUv + refractionOffset, aspect, 0.07) * transmittance * 4.;
 
-        color = reflectedColor + transmittedColor + diff * vec3(.8, 0.1, 1.) * .2;
+        color += (reflectedColor + transmittedColor) * AA_size * AA_size;
     }
+
+    color /= count;
 
     outColor = vec4(color, 1.);
 }

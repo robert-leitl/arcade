@@ -1,6 +1,5 @@
 uniform sampler2D uScene;
 uniform sampler2D uBloom;
-uniform sampler2D uSceneVolume;
 uniform float uBloomAmount;
 uniform vec4 uBloomViewport;
 

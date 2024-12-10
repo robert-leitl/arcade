@@ -1,5 +1,4 @@
 import { debounceTime, fromEvent, take } from 'rxjs';
-import { Pane } from 'tweakpane';
 import sketch from './sketch';
 import Stats from 'three/examples/jsm/libs/stats.module.js';
 
@@ -7,20 +6,15 @@ const queryString = window.location.search;
 const urlParams = new URLSearchParams(queryString);
 const hasDebugParam = urlParams.get('debug');
 const isDev = import.meta.env.MODE === 'development';
-let pane;
 
 if (isDev) {
-    //import('https://greggman.github.io/webgl-lint/webgl-lint.js');
-}
-
-if (hasDebugParam || isDev) {
-    //pane = new Pane({ title: 'Settings', expanded: isDev });
+    import('https://greggman.github.io/webgl-lint/webgl-lint.js');
 }
 
 const stats = new Stats();
 if (hasDebugParam || isDev) {
   stats.showPanel(0);
-  //document.body.appendChild(stats.dom);
+  document.body.appendChild(stats.dom);
   const updateStats = () => {
     stats.update();
     requestAnimationFrame(updateStats);
@@ -44,4 +38,4 @@ fromEvent(window, 'load').pipe(take(1)).subscribe(() => resize());
 
 // init
 const canvasElm = document.body.querySelector('canvas');
-sketch.init(canvasElm, (instance) => instance.run(), isDev, pane);
+sketch.init(canvasElm, (instance) => instance.run(), isDev);

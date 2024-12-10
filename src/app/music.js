@@ -89,8 +89,11 @@ export class Music extends Emitter {
             ...this.c21.map(n => ['10:0:0', n]),
             ...this.c22.map(n => ['11:0:0', n]),
         ];
+        let iteration = 0;
         this.harmonyPart = new Tone.Part((time, chord) => {
-            this.harmonyInstrument.triggerAttackRelease(chord, '1n', time);
+            iteration++;
+            const noteDuration = iteration >= 4 * 36 ? '4n' : '1n';
+            this.harmonyInstrument.triggerAttackRelease(chord, noteDuration, time);
         }, chordProgression ).start('6:0:0');
         this.harmonyPart.loop = 6;
         this.harmonyPart.loopEnd = '12:0:0';
@@ -98,7 +101,7 @@ export class Music extends Emitter {
 
         const meldoyDist = new Tone.Distortion({ distortion: 1, wet: .9 });
         const melodyVolume = new Tone.Volume(-37);
-        const melodyReverb = new Tone.Reverb(2);
+        const melodyReverb = new Tone.Reverb(3);
         this.meldoyInstrument = new Tone.PolySynth(
             Tone.AMSynth, {
                 oscillator: {
@@ -121,7 +124,7 @@ export class Music extends Emitter {
             this.meldoyInstrument.triggerAttackRelease(note, '16n');
         }, this.arp0, 'upDown').start('30:0:0');
         this.melodyArpeggio.iterations = 6*12*4;
-        this.melodyArpeggio.interval = '8t';
+        this.melodyArpeggio.interval = '8n';
 
 
 

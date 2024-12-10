@@ -1,11 +1,11 @@
 {
-  "name": "fft-convolution-bloom",
+  "name": "arcade",
   "private": true,
   "version": "1.0.0",
   "type": "module",
   "scripts": {
     "start": "vite serve --host 0.0.0.0",
-    "build": "vite build --emptyOutDir --base=/fft-convolution-bloom/dist/",
+    "build": "vite build --emptyOutDir --base=/arcade/dist/",
     "preview": "vite preview"
   },
   "devDependencies": {

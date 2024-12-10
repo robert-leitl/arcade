@@ -62,7 +62,7 @@ let rtScene, rtColor;
 
 let finalizeColorMaterial, raymarchMaterial, crtMaterial;
 
-const sceneRenderScale = .28;
+const sceneRenderScale = .22;
 let sceneRenderSize;
 
 let paint, env, bloom, music;

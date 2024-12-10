@@ -8,7 +8,7 @@ const hasDebugParam = urlParams.get('debug');
 const isDev = import.meta.env.MODE === 'development';
 
 if (isDev) {
-    import('https://greggman.github.io/webgl-lint/webgl-lint.js');
+    //import('https://greggman.github.io/webgl-lint/webgl-lint.js');
 }
 
 const stats = new Stats();

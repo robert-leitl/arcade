@@ -56,7 +56,7 @@ export class Music extends Emitter {
         const destination = new Tone.Compressor().toDestination();
 
         const harmonyDist = new Tone.Distortion({ distortion: 0.4, wet: .5 });
-        const harmonyVolume = new Tone.Volume(-27);
+        const harmonyVolume = new Tone.Volume(-15);
         this.harmonyInstrument = new Tone.PolySynth(
             Tone.AMSynth, {
                 oscillator: {
@@ -104,7 +104,7 @@ export class Music extends Emitter {
 
 
         const melodyDist = new Tone.Distortion({ distortion: 0.8, wet: .4 });
-        const melodyVolume = new Tone.Volume(-15);
+        const melodyVolume = new Tone.Volume(0);
         const melodyReverb = new Tone.Reverb(3);
         this.meldoyInstrument = new Tone.PolySynth(
             Tone.AMSynth, {
@@ -137,7 +137,7 @@ export class Music extends Emitter {
 
         const sparkReverb = new Tone.Reverb(10);
         this.sparkInstrument = new Tone.Synth({
-            volume: -35,
+            volume: -20,
             oscillator: {
                 type: "fatsawtooth",
                 count: 3,
@@ -159,22 +159,26 @@ export class Music extends Emitter {
 
 
 
-        const subReverb = new Tone.Reverb(6);
-        const subDist = new Tone.Distortion({ distortion: 0.3, wet: .6 });
+        const subReverb = new Tone.Reverb(8);
+        const subDist = new Tone.Distortion({ distortion: 0.5, wet: 1 });
         const subLowPass = new Tone.Filter(200, 'lowpass');
         this.subInstrument = new Tone.Synth({
-            volume: 0,
+            volume: -5,
             envelope: {
-                attack: 0.005,
+                attack: 0,
                 decay: 0.,
                 sustain: 1
             },
-            octaves: 4
+            oscillator: {
+                type: 'fatsawtooth',
+                count: 2,
+                spread: 10
+            }
         });
         this.subInstrument.chain(subLowPass, subReverb, destination);
         this.subPart = new Tone.Part((time, notes) => {
-            this.subInstrument.triggerAttackRelease(notes, '6n', time);
-            Tone.Draw.schedule(() => this.emit('sub'), time);
+            Tone.getDraw().schedule(() => this.emit('sub'), time);
+            this.subInstrument.triggerAttackRelease(notes, '16n', time);
         }, [[0, 'G0']] ).start('0:0:0');
         this.subPart.loop = true;
         this.subPart.loopEnd = '1:0:0';

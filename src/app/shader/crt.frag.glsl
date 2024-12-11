@@ -111,7 +111,7 @@ vec4 crt(vec4 color, vec2 uv, vec2 inputResolution) {
 
     float r = random(vec2(0.0, scany), fract(uTime * 0.00001));
     if (r > 0.95) {r *= 3.0;}
-    float ifx1 = (INTERFERENCE1 + uAnimationParams.y * .002) * 150.0 / inputResolution.x * r;
+    float ifx1 = (INTERFERENCE1 + uAnimationParams.y * .0025) * 150.0 / inputResolution.x * r;
     float ifx2 = INTERFERENCE2 * (r * peak(uv.y, 0.2, 0.2));
     uv.x += ifx1 + -ifx2;
 

@@ -2,6 +2,12 @@ import * as Tone from 'tone'
 import {Emitter} from 'tone'
 
 
+/**
+ * The `Music` class extends the `Emitter` class and is responsible for managing musical playback,
+ * chord progressions, and synthesized instruments using the Tone.js library. It acts as a controller
+ * and orchestrates audio playback, handling user interaction to start/stop music and emitting various
+ * events during the playback cycle.
+ */
 export class Music extends Emitter {
 
     c00 = ['G4', 'B2', 'E3'];
